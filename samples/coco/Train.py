@@ -1,15 +1,17 @@
 import os
 import sys
 # import imgaug  # https://github.com/aleju/imgaug (pip3 install imgaug)
-# Root directory of the project
-from Utils import create_folder
-from samples.coco.coco import CocoConfig, CocoDataset, evaluate_coco
-from mrcnn import model as modellib
 import time
 
 # Import Mask RCNN
 ROOT_DIR = os.path.abspath("../../")
 sys.path.append(ROOT_DIR)  # To find local version of the library
+
+# Root directory of the project
+from Utils import create_folder
+from samples.coco.coco import CocoConfig, CocoDataset, evaluate_coco
+from mrcnn import model as modellib
+
 # Path to trained weights file
 MODEL_PATH = os.path.join(ROOT_DIR, 'weights')
 
