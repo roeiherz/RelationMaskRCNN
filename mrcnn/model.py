@@ -29,6 +29,8 @@ from mrcnn import utils
 # Requires TensorFlow 1.3+ and Keras 2.0.8+.
 from distutils.version import LooseVersion
 
+from mrcnn.utils import extract_union_bboxes
+
 assert LooseVersion(tf.__version__) >= LooseVersion("1.3")
 assert LooseVersion(keras.__version__) >= LooseVersion('2.0.8')
 
@@ -381,8 +383,6 @@ class GPILayer(KE.Layer):
 
     def compute_output_shape(self, input_shape):
         return input_shape[0][:2] + self.pool_shape + (input_shape[2][-1],)
-
-
 
 
 ############################################################
@@ -997,7 +997,7 @@ def fpn_classifier_graph(rois, feature_maps, image_meta,
                                                      name="roi_align_object_classifier")(
         [rois, image_meta] + feature_maps)
 
-    pairwise_rois = rois
+    pairwise_rois = extract_union_bboxes(rois)
 
     # ROI Pooling for Relations
     pairwise_pooled, pairwise_features = PyramidROIAlign([pool_size, pool_size],
@@ -2069,60 +2069,26 @@ class MaskRCNN():
             # Network Heads
             # TODO: verify that this handles zero padded ROIs
 
-            func = K.function([input_image, input_image_meta, input_rpn_match, input_rpn_bbox,
-                               input_gt_class_ids, input_gt_boxes, input_gt_masks],
-                              [rois])
+            # func = K.function([input_image, input_image_meta, input_rpn_match, input_rpn_bbox,
+            #                    input_gt_class_ids, input_gt_boxes, input_gt_masks],
+            #                   [rois])
+            # rois = func([input_image, input_image_meta, input_rpn_match, input_rpn_bbox, input_gt_class_ids,
+            #             input_gt_boxes, input_gt_masks])
+            # rois = rois[0]
 
-            import cPickle
-            inputs = cPickle.load(open("/specific/netapp5_2/gamir/DER-Roei/RelationMaskRCNN/inputs.p"))
-            input_image = inputs[0]
-            input_image_meta = inputs[1]
-            input_rpn_match = inputs[2]
-            input_rpn_bbox = inputs[3]
-            input_gt_class_ids = inputs[4]
-            input_gt_boxes = inputs[5]
-            input_gt_masks = inputs[6]
+            # import cPickle
+            # inputs = cPickle.load(open("/home/roeih/RelationMaskRCNN/inputs.p"))
+            # input_image = inputs[0]
+            # input_image_meta = inputs[1]
+            # input_rpn_match = inputs[2]
+            # input_rpn_bbox = inputs[3]
+            # input_gt_class_ids = inputs[4]
+            # input_gt_boxes = inputs[5]
+            # input_gt_masks = inputs[6]
+            # rois = cPickle.load(open("/home/roeih/RelationMaskRCNN/rois.p"))
 
-            rois = func([input_image, input_image_meta, input_rpn_match, input_rpn_bbox, input_gt_class_ids,
-                        input_gt_boxes, input_gt_masks])
-            rois = rois[0]
-            y1, x1, y2, x2 = tf.split(rois, 4, axis=2)
-            # Get the number of the boxes
-            num_boxes = tf.shape(rois)[1]
-            # [x1, x1...,   x2, x2,..., xn,  xn....] [1, num_rois x (num_rois - 1)]
-            x1_duplicated = tf.reshape(tf.tile(x1[0],  [1, num_boxes - 1]), (-1,))
-            # [-,x2..., xn, x1, -, ..., xn,  x1...-] [1, num_rois x (num_rois - 1)]
-            x2_duplicated = tf.reshape(tf.tile(x2[0],  [1, num_boxes - 1]), (-1,))
-            # [y1, y1...,y2, y2,..., yn, yn...] [1, num_rois x num_rois]
-            y1_duplicated = tf.reshape(tf.tile(y1[0],  [1, num_boxes]), (-1,))
-            y2_duplicated = tf.reshape(tf.tile(y2[0],  [1, num_boxes]), (-1,))
-
-            x1_reshaped = tf.reshape(x1, (-1,))
-            x2_reshaped = tf.reshape(x2, (-1,))
-            y1_reshaped = tf.reshape(y1, (-1,))
-            y2_reshaped = tf.reshape(y2, (-1,))
-
-
-            pairwise_rois = tf.zeros((1, num_boxes * num_boxes, 4))
-            pairwise_rois = []
-            # for i in range(num_boxes * num_boxes):
-            #     for j in range(num_boxes * num_boxes):
-
-            sess = K.get_session()
-            sess.run()
-            tt = sess.run(x1)
-            tt[0][2] = 1
-            aa = tt.reshape(-1)
-
-            tile_a = tf.tile(tf.expand_dims(x1_reshaped, 1), [1, tf.shape(x2_reshaped)[0]])
-            tile_a = tf.expand_dims(tile_a, 2)
-            tile_b = tf.tile(tf.expand_dims(x2_reshaped, 0), [tf.shape(x1_reshaped)[0], 1])
-            tile_b = tf.expand_dims(tile_b, 2)
-            cartesian_product = tf.concat([tile_a, tile_b], axis=2)
-
-
-
-
+            # sess = K.get_session()
+            # tt = sess.run(x1)
 
             mrcnn_class_logits, mrcnn_class, mrcnn_bbox = \
                 fpn_classifier_graph(rois, mrcnn_feature_maps, input_image_meta,

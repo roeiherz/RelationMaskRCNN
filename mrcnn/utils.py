@@ -28,6 +28,46 @@ COCO_MODEL_URL = "https://github.com/matterport/Mask_RCNN/releases/download/v2.0
 ############################################################
 #  Bounding Boxes
 ############################################################
+def extract_union_bboxes(rois):
+    """Compute union of bounding boxes as a cartesian product.
+    rois: [num_batch, num_instances, (y1, x1, y2, x2)].
+
+    Returns: bbox array [num_batch, num_instances, (y1, x1, y2, x2)].
+    """
+    y1, x1, y2, x2 = tf.split(rois, 4, axis=2)
+    # Get the number of the boxes
+    num_boxes = tf.shape(rois)[1]
+    # [x1, x1...,   x2, x2,..., xn,  xn....] [1, num_rois x num_rois]
+    x1_duplicated = tf.reshape(tf.tile(tf.cast(x1[0], tf.float32), [1, num_boxes]), (-1,))
+    # [x1, x2... xn,   x1, x2,..., xn,  x1....xn] [1, num_rois x num_rois]
+    x2_duplicated = tf.tile(tf.transpose(tf.cast(x2[0], tf.float32)), [1, num_boxes])
+    # [x1, 0., 0., 0., x2, 0., 0., 0., xn] [1, num_rois x num_rois ]
+    x2_tmp = tf.reshape((tf.reshape(x2_duplicated, (num_boxes, num_boxes)) * tf.eye(num_boxes)), (-1,))
+    # Our new x1 and x2
+    x1_candidates = tf.reshape(tf.gather(x1_duplicated, tf.where(tf.not_equal(x1_duplicated - x2_tmp, 0))),
+                               (-1,))
+    x2_candidates = tf.reshape(tf.gather(x2_duplicated, tf.where(tf.equal(x1_duplicated - x2_tmp, 0))),
+                               (-1,))
+    # Get new x's
+    x2_max = tf.maximum(x1_candidates, tf.transpose(x2_candidates))
+    x1_min = tf.minimum(x1_candidates, tf.transpose(x2_candidates))
+
+    # Calc Ys same as Xs
+    y1_duplicated = tf.reshape(tf.tile(tf.cast(y1[0], tf.float32), [1, num_boxes]), (-1,))
+    y2_duplicated = tf.tile(tf.transpose(tf.cast(y2[0], tf.float32)), [1, num_boxes])
+    y2_tmp = tf.reshape((tf.reshape(y2_duplicated, (num_boxes, num_boxes)) * tf.eye(num_boxes)), (-1,))
+    # Our new y1 and y2
+    y1_candidates = tf.reshape(tf.gather(y1_duplicated, tf.where(tf.not_equal(y1_duplicated - y2_tmp, 0))),
+                               (-1,))
+    y2_candidates = tf.reshape(tf.gather(y2_duplicated, tf.where(tf.equal(y1_duplicated - y2_tmp, 0))),
+                               (-1,))
+    # Get new y's
+    y2_max = tf.maximum(y1_candidates, tf.transpose(y2_candidates))
+    y1_min = tf.minimum(y1_candidates, tf.transpose(y2_candidates))
+
+    boxes = tf.concat([y1_min, x1_min, y2_max, x2_max], axis=1)
+    return boxes
+
 
 def extract_bboxes(mask):
     """Compute bounding boxes from masks.
