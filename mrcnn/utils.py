@@ -29,6 +29,16 @@ COCO_MODEL_URL = "https://github.com/matterport/Mask_RCNN/releases/download/v2.0
 #  Bounding Boxes
 ############################################################
 
+class BOX:
+    def __init__(self):
+        pass
+
+    X1 = 0
+    Y1 = 1
+    X2 = 2
+    Y2 = 3
+
+
 def extract_bboxes(mask):
     """Compute bounding boxes from masks.
     mask: [height, width, num_instances]. Mask pixels are either 1 or 0.
@@ -99,7 +109,7 @@ def compute_overlaps_masks(masks1, masks2):
     '''Computes IoU overlaps between two sets of masks.
     masks1, masks2: [Height, Width, instances]
     '''
-    
+
     # If either set of masks is empty return empty result
     if masks1.shape[0] == 0 or masks2.shape[0] == 0:
         return np.zeros((masks1.shape[0], masks2.shape[-1]))
@@ -766,14 +776,14 @@ def compute_ap_range(gt_box, gt_class_id, gt_mask,
     """Compute AP over a range or IoU thresholds. Default range is 0.5-0.95."""
     # Default is 0.5 to 0.95 with increments of 0.05
     iou_thresholds = iou_thresholds or np.arange(0.5, 1.0, 0.05)
-    
+
     # Compute AP over range of IoU thresholds
     AP = []
     for iou_threshold in iou_thresholds:
-        ap, precisions, recalls, overlaps =\
+        ap, precisions, recalls, overlaps = \
             compute_ap(gt_box, gt_class_id, gt_mask,
-                        pred_box, pred_class_id, pred_score, pred_mask,
-                        iou_threshold=iou_threshold)
+                       pred_box, pred_class_id, pred_score, pred_mask,
+                       iou_threshold=iou_threshold)
         if verbose:
             print("AP @{:.2f}:\t {:.3f}".format(iou_threshold, ap))
         AP.append(ap)
@@ -873,7 +883,8 @@ def norm_boxes(boxes, shape):
     h, w = shape
     scale = np.array([h - 1, w - 1, h - 1, w - 1])
     shift = np.array([0, 0, 1, 1])
-    return np.divide((boxes - shift), scale).astype(np.float32)
+    # return np.divide((boxes - shift), scale).astype(np.float32)
+    return np.divide((boxes - shift), scale.astype(np.float32)).astype(np.float32)
 
 
 def denorm_boxes(boxes, shape):
@@ -891,3 +902,66 @@ def denorm_boxes(boxes, shape):
     scale = np.array([h - 1, w - 1, h - 1, w - 1])
     shift = np.array([0, 0, 1, 1])
     return np.around(np.multiply(boxes, scale) + shift).astype(np.int32)
+
+
+def get_union_boxes(boxes):
+    """
+    This function calculates the union bounding boxes given n boxes
+    :param boxes: n boxes [num_of_boxes, (y1, x1, y2, x2)]
+    :return: n^2 boxes [num_of_boxes, (y1, x1, y2, x2)]
+    """
+    # todo: model.rois
+    y1, x1, y2, x2 = tf.split(boxes, 4, axis=2)
+
+    # # Get the nex X's
+    num_boxes = tf.shape(boxes)[1]
+    # [x11, x11...,   x12, x12,..., x1n,  x1n....] [1, num_rois x num_rois]
+    x1_duplicated = tf.reshape(tf.tile(tf.cast(x1[0], tf.float32), [1, num_boxes]), (-1,))
+    # [x21, x22... x2n,   x21, x22,..., x2n,  x21....x2n] [1, num_rois x num_rois]
+    x2_duplicated = tf.tile(tf.transpose(tf.cast(x2[0], tf.float32)), [1, num_boxes])[0]
+
+    # [x1, 0., 0., 0., x2, 0., 0., 0., xn] [1, num_rois x num_rois ]
+    x_indices = tf.reshape((tf.reshape(x2_duplicated, (num_boxes, num_boxes)) * tf.eye(num_boxes)), (-1,))
+    # Our new x1 and x2
+    x1_candidates = tf.reshape(tf.gather(x1_duplicated, tf.where(tf.equal(x_indices, 0))), (-1,))
+    x2_candidates = tf.reshape(tf.gather(x2_duplicated, tf.where(tf.equal(x_indices, 0))), (-1,))
+
+    # New illegal x's
+    x_new_indices = tf.where(tf.greater(x2_candidates - x1_candidates, 0))
+    x1_min = tf.reshape(tf.gather(x1_candidates, x_new_indices), (-1,))
+    x2_max = tf.reshape(tf.gather(x2_candidates, x_new_indices), (-1,))
+
+    # # Get the nex Y's
+    y1_duplicated = tf.reshape(tf.tile(tf.cast(y1[0], tf.float32), [1, num_boxes]), (-1,))
+    y2_duplicated = tf.tile(tf.transpose(tf.cast(y2[0], tf.float32)), [1, num_boxes])[0]
+    # [y1, 0., 0., 0., y2, 0., 0., 0., yn] [1, num_rois x num_rois ]
+    y_indices = tf.reshape((tf.reshape(y2_duplicated, (num_boxes, num_boxes)) * tf.eye(num_boxes)), (-1,))
+    # Our new y1 and y2
+    y1_candidates = tf.reshape(tf.gather(y1_duplicated, tf.where(tf.equal(y_indices, 0))), (-1,))
+    y2_candidates = tf.reshape(tf.gather(y2_duplicated, tf.where(tf.equal(y_indices, 0))), (-1,))
+    # New y's
+    y_new_indices = tf.where(tf.greater(y2_candidates - y1_candidates, 0))
+    y1_min = tf.reshape(tf.gather(y1_candidates, y_new_indices), (-1,))
+    y2_max = tf.reshape(tf.gather(y2_candidates, y_new_indices), (-1,))
+
+    y_new_indices_reshaped = tf.reshape(y_new_indices, (-1,))
+    x_new_indices_reshaped = tf.reshape(x_new_indices, (-1,))
+
+    valid_indices = tf.constant([-1])
+    # ind = tf.constant(0)
+    for i in range(200):
+        resx = tf.size(tf.where(tf.equal(x_new_indices_reshaped, i)))
+        resx = tf.greater(resx, 0)
+        resy = tf.size(tf.where(tf.equal(y_new_indices_reshaped, i)))
+        resy = tf.greater(resy, 0)
+        result = tf.logical_and(resx, resy)
+        valid_indices = tf.cond(result, lambda: tf.concat([valid_indices, tf.constant([i])], axis=0),
+                                lambda: tf.concat([valid_indices, tf.constant([-1])], axis=0))
+        # ind = tf.cond(result, lambda: tf.add(ind, 1), lambda: tf.add(ind, 0))
+    indices = tf.where(valid_indices > -1)
+    new_x1_min = tf.gather(x1_min, indices)
+    new_x1_max = tf.gather(x2_max, indices)
+    new_y1_min = tf.gather(y1_min, indices)
+    new_y2_max = tf.gather(y2_max, indices)
+    new_boxes = np.concatenate([new_y1_min, new_x1_min, new_y2_max, new_x1_max], axis=0)
+    return new_boxes
