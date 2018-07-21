@@ -904,13 +904,13 @@ def denorm_boxes(boxes, shape):
     return np.around(np.multiply(boxes, scale) + shift).astype(np.int32)
 
 
-def get_union_boxes(boxes):
+def compute_union_boxes(boxes, num_rois):
     """
     This function calculates the union bounding boxes given n boxes
-    :param boxes: n boxes [num_of_boxes, (y1, x1, y2, x2)]
-    :return: n^2 boxes [num_of_boxes, (y1, x1, y2, x2)]
+    :param boxes: [batch, num_boxes, (y1, x1, y2, x2)] Proposal boxes in normalized coordinates.
+    :param num_rois: Number of rois.
+    :return: n^2 boxes [batch, num_boxes^2, (y1, x1, y2, x2)]
     """
-    # todo: model.rois
     y1, x1, y2, x2 = tf.split(boxes, 4, axis=2)
 
     # # Get the nex X's
@@ -949,7 +949,7 @@ def get_union_boxes(boxes):
 
     valid_indices = tf.constant([-1])
     # ind = tf.constant(0)
-    for i in range(200):
+    for i in range(num_rois * (num_rois - 1)):
         resx = tf.size(tf.where(tf.equal(x_new_indices_reshaped, i)))
         resx = tf.greater(resx, 0)
         resy = tf.size(tf.where(tf.equal(y_new_indices_reshaped, i)))
@@ -960,8 +960,11 @@ def get_union_boxes(boxes):
         # ind = tf.cond(result, lambda: tf.add(ind, 1), lambda: tf.add(ind, 0))
     indices = tf.where(valid_indices > -1)
     new_x1_min = tf.gather(x1_min, indices)
-    new_x1_max = tf.gather(x2_max, indices)
+    new_x2_max = tf.gather(x2_max, indices)
     new_y1_min = tf.gather(y1_min, indices)
     new_y2_max = tf.gather(y2_max, indices)
-    new_boxes = np.concatenate([new_y1_min, new_x1_min, new_y2_max, new_x1_max], axis=0)
+
+    # returns [batch, num_boxes^2, (y1, x1, y2, x2)]
+    new_boxes = tf.concat([new_y1_min, new_x1_min, new_y2_max, new_x2_max], axis=1)
+    new_boxes = tf.expand_dims(new_boxes, axis=0)
     return new_boxes
