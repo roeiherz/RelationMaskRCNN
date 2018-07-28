@@ -86,7 +86,25 @@ class CocoConfig(Config):
     # Number of classes (including background)
     NUM_CLASSES = 1 + 80  # COCO has 80 classes
 
-    TRAIN_ROIS_PER_IMAGE = 50
+    # Number of ROIs per image to feed to classifier/mask heads
+    # The Mask RCNN paper uses 512 but often the RPN doesn't generate
+    # enough positive proposals to fill this and keep a positive:negative
+    # ratio of 1:3. You can increase the number of proposals by adjusting the RPN NMS threshold.
+    TRAIN_ROIS_PER_IMAGE = 200TRAIN_ROIS_PER_IMAGE = 200
+
+    # Percent of positive ROIs used to train classifier/mask heads
+    ROI_POSITIVE_RATIO = 0.33
+
+    # Max number of final detections (for inference)
+    DETECTION_MAX_INSTANCES = 100
+
+    # Minimum probability value to accept a detected instance ROIs below this threshold are skipped (for inference)
+    DETECTION_MIN_CONFIDENCE = 0.7
+
+    # Non-maximum suppression threshold for detection (for inference)
+    DETECTION_NMS_THRESHOLD = 0.3
+
+
 
 
 ############################################################
