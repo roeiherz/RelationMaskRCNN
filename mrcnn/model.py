@@ -23,11 +23,15 @@ import keras.backend as K
 import keras.layers as KL
 import keras.engine as KE
 import keras.models as KM
+from keras import Model
 
 from mrcnn import utils
 
 # Requires TensorFlow 1.3+ and Keras 2.0.8+.
 from distutils.version import LooseVersion
+
+from mrcnn.utils import compute_union_boxes, compute_union_boxes
+from mrcnn.GPIKerasModule import GPIKerasModel
 
 assert LooseVersion(tf.__version__) >= LooseVersion("1.3")
 assert LooseVersion(keras.__version__) >= LooseVersion('2.0.8')
@@ -335,6 +339,361 @@ class ProposalLayer(KE.Layer):
         return (None, self.proposal_count, 4)
 
 
+# @todo: delete
+############################################################
+#  Graph Permeation Invariant Model
+############################################################
+
+class GPILayerModel(object):
+    def __init__(self, num_rois, single_rois=None, pairwise_rois=None, rnn_steps=1, gpi_type='FeatureAttention',
+                 scope_name='deep_gpi_graph'):
+        self.scope_name = scope_name
+        # Single ROIs - [batch, num_boxes , 4]
+        self.single_rois = KL.Input(shape=[None, 4], name="obj_bb")
+        # Pairwise ROIs - [batch, num_boxes^2 , 4]
+        self.pairwise_rois = KL.Input(shape=[None, 4], name="relation_bb")
+        # Object features - [batch ,num_boxes , 4]
+        self.entity_features = KL.Input(shape=[None, 1024], name="entity_features")
+        # Relation features - [batch ,num_boxes , 4]
+        self.relation_features = KL.Input(shape=[None, 1024], name="relation_features")
+        self.num_rois = num_rois
+        self.gpi_type = gpi_type
+        self.rnn_steps = max(1, rnn_steps)
+        self.activation_fn = tf.nn.relu
+        self.feature_size = 1024
+
+    def run_gpi(self, inputs):
+        """
+        
+        :return: 
+        """
+
+        # Crop single features [batch, num_boxes, feature_size]
+        entity_features = inputs[0]
+        # Crop pairwise features [batch, num_boxes^2, feature_size]
+        relation_features = inputs[1]
+
+        # features msg
+        for step in range(self.rnn_steps):
+            object_feature = self.build_gpi(relation_features=relation_features,
+                                            entity_features=entity_features,
+                                            scope_name="deep_graph")
+            # store the confidence
+            # self.out_confidence_entity_lst.append(confidence_entity)
+            # self.reuse = True
+
+        return object_feature
+
+    def init_gpi(self, scope_name="deep_graph_init"):
+        """
+        
+        :param inputs: 
+        :return: 
+        """
+        # Reshape [batch, num_boxes, num_boxes, 1024]
+        relation_features_rs = KL.Reshape((self.num_rois, self.num_rois, self.feature_size))(self.relation_features)
+
+        relation_features_pr = KL.Permute(dims=[2, 1, 3])(relation_features_rs)
+        # Concat relations in the feature axis - [batch_num, num_boxes, num_boxes, feature_size * 2]
+        relation_features = KL.concatenate(inputs=[relation_features_rs, relation_features_pr], axis=3)
+
+        # Concat spatial features - [batch, num_boxes, features_size + 4]
+        entity_features = KL.concatenate(inputs=[self.entity_features, self.single_rois], axis=2)
+        # Reshape to [batch, num_boxes, num_boxes, 4]
+        shaped_relation_bb = KL.Reshape((self.num_rois, self.num_rois, 4))(self.pairwise_rois)
+        # Concat to feature axis - [batch, num_boxes, num_boxes, feature_size * 2 + 4]
+        relation_features = KL.concatenate(inputs=[relation_features, shaped_relation_bb], axis=3)
+
+        m = KM.Model([self.single_rois, self.pairwise_rois, self.entity_features, self.relation_features],
+                     [entity_features, relation_features])
+
+        return m
+
+    def expand_object_subject(self, entity_features, relation_features, scope_name="deep_graph_expand"):
+        """
+        
+        :param inputs: 
+        :return: 
+        """
+        # Expand object confidence
+        # [num_boxes, num_boxes, features_size + 4]
+        extended_confidence_entity_shape = (self.num_rois, self.num_rois, entity_features.shape[2])
+        # [num_boxes, num_boxes, features_size + 4]
+        expand_object_features = KL.add([K.zeros(extended_confidence_entity_shape), K.squeeze(entity_features, 0)],
+                                        name="expand_object_features")
+        # Add batch - [batch, num_boxes, num_boxes, features_size + 4]
+        expand_object_features = KL.Lambda(lambda x: K.expand_dims(x, axis=0))(expand_object_features)
+
+        # Expand subject confidence
+        expand_subject_features = KL.Permute(dims=[2, 1, 3], name="expand_subject_features")(expand_object_features)
+
+        # Node Neighbours
+        object_ngbrs = [expand_object_features, expand_subject_features, relation_features]
+        object_ngbrs_tensor = KL.Lambda(lambda x: K.concatenate(x, axis=-1))(object_ngbrs)
+
+        return object_ngbrs_tensor
+
+    def phi(self, entity_features, object_ngbrs_tensor, scope_name="deep_graph_phi"):
+        """
+        
+        :param inputs: 
+        :return: 
+        """
+
+        # Phi
+        object_ngbrs_phi = self.mlp_model(features=object_ngbrs_tensor, size=object_ngbrs_tensor.shape[3],
+                                          layers=[500, 500], out=500, scope_name="nn_phi")
+        # Attention mechanism over phi
+        if self.gpi_type == "FeatureAttention" or self.gpi_type == "Linguistic":
+            object_ngbrs_scores = self.mlp_model(features=object_ngbrs_tensor, size=object_ngbrs_tensor.shape[3],
+                                                 layers=[500], out=500, scope_name="nn_phi_atten")
+            object_ngbrs_weights = tf.nn.softmax(object_ngbrs_scores, axis=1)
+            object_ngbrs_phi_all = tf.reduce_sum(tf.multiply(object_ngbrs_phi, object_ngbrs_weights), axis=1)
+
+        elif self.gpi_type == "NeighbourAttention":
+            object_ngbrs_scores = self.mlp_model(features=object_ngbrs_tensor, size=object_ngbrs_tensor.shape[3],
+                                                 layers=[500], out=1, scope_name="nn_phi_atten")
+            object_ngbrs_weights = tf.nn.softmax(object_ngbrs_scores, axis=1)
+            object_ngbrs_phi_all = tf.reduce_sum(tf.multiply(object_ngbrs_phi, object_ngbrs_weights), axis=1)
+        else:
+            object_ngbrs_phi_all = tf.reduce_sum(object_ngbrs_phi, axis=1) / tf.constant(40.0)
+
+        # Nodes
+        object_ngbrs2 = [entity_features, object_ngbrs_phi_all]
+        object_ngbrs2_tensor = KL.Lambda(lambda x: K.concatenate(x, axis=-1))(object_ngbrs2)
+        return object_ngbrs2_tensor
+
+    def alpha(self, object_ngbrs2_tensor, scope_name="deep_graph_alpha"):
+        """
+        
+        :param inputs: 
+        :return: 
+        """
+
+        # Alpha
+        object_ngbrs2_alpha = self.mlp_model(features=object_ngbrs2_tensor, size=object_ngbrs2_tensor.shape[2],
+                                             layers=[500, 500], out=500, scope_name="nn_phi2")
+
+        # Attention mechanism over alpha
+        if self.gpi_type == "FeatureAttention" or self.gpi_type == "Linguistic":
+            object_ngbrs2_scores = self.mlp_model(features=object_ngbrs2_tensor, size=object_ngbrs2_tensor.shape[2],
+                                                  layers=[500], out=500, scope_name="nn_phi2_atten")
+            object_ngbrs2_weights = tf.nn.softmax(object_ngbrs2_scores, axis=0)
+            object_ngbrs2_alpha_all = tf.reduce_sum(tf.multiply(object_ngbrs2_alpha, object_ngbrs2_weights), axis=0)
+        elif self.gpi_type == "NeighbourAttention":
+            object_ngbrs2_scores = self.mlp_model(features=object_ngbrs2_tensor, size=object_ngbrs2_tensor.shape[2],
+                                                  layers=[500], out=1, scope_name="nn_phi2_atten")
+            object_ngbrs2_weights = tf.nn.softmax(object_ngbrs2_scores, axis=0)
+            object_ngbrs2_alpha_all = tf.reduce_sum(tf.multiply(object_ngbrs2_alpha, object_ngbrs2_weights), axis=0)
+        else:
+            object_ngbrs2_alpha_all = tf.reduce_sum(object_ngbrs2_alpha, axis=0) / tf.constant(40.0)
+
+        # [num_boxes, 500]
+        expand_graph = KL.add([K.zeros(object_ngbrs2_alpha_all.shape), object_ngbrs2_alpha_all], name="expand_graph")
+        # Add batch - [batch, num_boxes, 500]
+        expand_graph = KL.Lambda(lambda x: K.expand_dims(x, axis=0))(expand_graph)
+        return expand_graph
+
+    def rho(self, entity_features, object_alpha_tensor, scope_name="deep_graph_rho"):
+        """
+        
+        :param inputs: 
+        :return: 
+        """
+
+        # rho entity (entity prediction)
+        # The input is entity features, entity neighbour features and the representation of the graph
+        object_all_features = [entity_features, object_alpha_tensor]
+        object_all_features_tensor = KL.Lambda(lambda x: K.concatenate(x, axis=-1))(object_all_features)
+
+        out_feature_object = self.mlp_model(features=object_all_features_tensor,
+                                            size=object_all_features_tensor.shape[1],
+                                            layers=[500, 500], out=1024, scope_name="nn_obj")
+        out_feature_object = KL.Lambda(lambda x: x, name="out_feature_object")(out_feature_object)
+        return out_feature_object
+
+    def build_gpi(self, entity_features, relation_features, scope_name="deep_graph"):
+        """
+        
+        :param inputs: 
+        :return: 
+        """
+        # Ignore the batch axis [num_boxes, 1024]
+        # entity_features_sq = KL.Lambda(lambda x: K.squeeze(x, 0), name='entity_features_sq')(self.entity_features)
+        # Reshape [batch, num_boxes, num_boxes, 1024]
+        relation_features_rs = KL.Reshape((self.num_rois, self.num_rois, 1024))(self.relation_features)
+        # Ignore the batch axis [num_boxes, num_boxes, 1024]
+        # relation_features_sq = KL.Lambda(lambda x: K.squeeze(x, 0), name='relation_features_sq')(relation_features_rs)
+
+        # Number of boxes
+        # N = tf.slice(tf.shape(entity_features_sq), [0], [1], name="N")
+
+        relation_features_pr = KL.Permute(dims=[2, 1, 3])(relation_features_rs)
+        # Concat relations in the feature axis - [batch_num, num_boxes, num_boxes, feature_size * 2]
+        # relation_features = KL.Lambda(lambda x: K.concatenate(x, axis=3))([relation_features_rs, relation_features_pr])
+        relation_features = KL.concatenate(inputs=[relation_features_rs, relation_features_pr], axis=3)
+
+        # Concat spatial features - [batch, num_boxes, features_size + 4]
+        # entity_features = KL.Lambda(lambda x: K.concatenate(x, axis=2))()
+        entity_features = KL.concatenate(inputs=[self.entity_features, self.single_rois], axis=2)
+        # Reshape to [batch, num_boxes, num_boxes, 4]
+        shaped_relation_bb = KL.Reshape((self.num_rois, self.num_rois, 4))(self.pairwise_rois)
+        # Concat to feature axis - [batch, num_boxes, num_boxes, feature_size * 2 + 4]
+        # relation_features = KL.Lambda(lambda x: K.concatenate(x, axis=3))([])
+        relation_features = KL.concatenate(inputs=[relation_features, shaped_relation_bb], axis=3)
+
+        # Expand object confidence
+        # [num_boxes, num_boxes, features_size + 4]
+        extended_confidence_entity_shape = (self.num_rois, self.num_rois, entity_features.shape[2])
+        # [num_boxes, num_boxes, features_size + 4]
+        expand_object_features = KL.add([K.zeros(extended_confidence_entity_shape), K.squeeze(entity_features, 0)],
+                                        name="expand_object_features")
+        # Add batch - [batch, num_boxes, num_boxes, features_size + 4]
+        expand_object_features = KL.Lambda(lambda x: K.expand_dims(x, axis=0))(expand_object_features)
+
+        # Expand subject confidence
+        expand_subject_features = KL.Permute(dims=[2, 1, 3], name="expand_subject_features")(expand_object_features)
+
+        # Node Neighbours
+        object_ngbrs = [expand_object_features, expand_subject_features, relation_features]
+        object_ngbrs_tensor = KL.Lambda(lambda x: K.concatenate(x, axis=-1))(object_ngbrs)
+
+        # Phi
+        object_ngbrs_phi = self.phi_nn_model(features=object_ngbrs_tensor, layers=[500, 500], out=500,
+                                             scope_name="nn_phi")
+        # object_ngbrs_phi = self.nn_model(features=object_ngbrs, layers=[500, 500], out=500, scope_name="nn_phi")
+        # return KL.Lambda(lambda x: tf.keras.backend.expand_dims(object_ngbrs_phi, axis=0))(relation_features_sq)
+        return object_ngbrs_phi
+
+        # Attention mechanism over phi
+        if self.gpi_type == "FeatureAttention" or self.gpi_type == "Linguistic":
+            object_ngbrs_scores = self.nn_model(features=object_ngbrs, layers=[500], out=500, scope_name="nn_phi_atten")
+            object_ngbrs_weights = tf.nn.softmax(object_ngbrs_scores, axis=1)
+            object_ngbrs_phi_all = tf.reduce_sum(tf.multiply(object_ngbrs_phi, object_ngbrs_weights), axis=1)
+
+        elif self.gpi_type == "NeighbourAttention":
+            object_ngbrs_scores = self.nn_model(features=object_ngbrs, layers=[500], out=1, scope_name="nn_phi_atten")
+            object_ngbrs_weights = tf.nn.softmax(object_ngbrs_scores, axis=1)
+            object_ngbrs_phi_all = tf.reduce_sum(tf.multiply(object_ngbrs_phi, object_ngbrs_weights), axis=1)
+        else:
+            object_ngbrs_phi_all = tf.reduce_sum(object_ngbrs_phi, axis=1) / tf.constant(40.0)
+
+        # Nodes
+        object_ngbrs2 = [entity_features, object_ngbrs_phi_all]
+        # Alpha
+        object_ngbrs2_alpha = self.nn_model(features=object_ngbrs2, layers=[500, 500], out=500, scope_name="nn_phi2")
+
+        # Attention mechanism over alpha
+        if self.gpi_type == "FeatureAttention" or self.gpi_type == "Linguistic":
+            object_ngbrs2_scores = self.nn_model(features=object_ngbrs2, layers=[500], out=500,
+                                                 scope_name="nn_phi2_atten")
+            object_ngbrs2_weights = tf.nn.softmax(object_ngbrs2_scores, axis=0)
+            object_ngbrs2_alpha_all = tf.reduce_sum(tf.multiply(object_ngbrs2_alpha, object_ngbrs2_weights), axis=0)
+        elif self.gpi_type == "NeighbourAttention":
+            object_ngbrs2_scores = self.nn_model(features=object_ngbrs2, layers=[500], out=1,
+                                                 scope_name="nn_phi2_atten")
+            object_ngbrs2_weights = tf.nn.softmax(object_ngbrs2_scores, axis=0)
+            object_ngbrs2_alpha_all = tf.reduce_sum(tf.multiply(object_ngbrs2_alpha, object_ngbrs2_weights), axis=0)
+        else:
+            object_ngbrs2_alpha_all = tf.reduce_sum(object_ngbrs2_alpha, axis=0) / tf.constant(40.0)
+
+        expand_graph_shape = tf.concat((N, tf.shape(object_ngbrs2_alpha_all)), 0)
+        expand_graph = tf.add(tf.zeros(expand_graph_shape), object_ngbrs2_alpha_all)
+
+        ##
+        # rho entity (entity prediction)
+        # The input is entity features, entity neighbour features and the representation of the graph
+        object_all_features = [entity_features, expand_graph]
+        obj_delta = self.nn_model(features=object_all_features, layers=[500, 500, 1024], out=2, scope_name="nn_obj")
+        out_feature_object = obj_delta
+
+        out_feature_object = KL.Lambda(lambda x: x, name="out_feature_object")(out_feature_object)
+        return [out_feature_object]
+
+    def phi_nn_model(self, features, layers, out, scope_name, last_activation=None):
+        """
+        simple nn to convert features to confidence
+        :param features: list of features tensor
+        :param layers: hidden layers
+        :param out: output shape (used to reshape to required output shape)
+        :param scope_name: tensorflow scope name
+        :param last_activation: activation function for the last layer (None means no activation)
+        :return: likelihood
+        """
+
+        input_layer = KL.Input(shape=(self.num_rois, self.num_rois,
+                                      (self.feature_size + 4) * 2 + (self.feature_size * 2) + 4))
+        h = input_layer
+        for i, layer in enumerate(layers):
+            h = KL.Dense(layer, activation='relu', name='{}'.format(i))(h)
+
+        out_layer = KL.Dense(out, name='out')(h)
+
+        # Create Model
+        m = Model(inputs=[input_layer], outputs=[out_layer])
+
+        return m(features)
+
+    def mlp_model(self, features, size, layers, out, scope_name='', last_activation=None):
+        """
+        simple nn to convert features to confidence
+        :param features: keras tensor after concat
+        :param layers: hidden layers
+        :param out: output shape (used to reshape to required output shape)
+        :param scope_name: tensorflow scope name
+        :param last_activation: activation function for the last layer (None means no activation)
+        :return: likelihood
+        """
+
+        with tf.variable_scope(scope_name) as scopevar:
+            input_layer = KL.Input(shape=tuple(features.get_shape().as_list()[1:]))
+            # features.shape[1:]
+            h = input_layer
+            for i, layer in enumerate(layers):
+                h = KL.Dense(layer, activation='relu', name='{}'.format(i))(h)
+
+            out_layer = KL.Dense(out, name='out')(h)
+
+            # Create Model
+            m = Model(inputs=[input_layer], outputs=[out_layer])
+
+        return m(features)
+
+    def nn_model(self, features, layers, out, scope_name, last_activation=None):
+        """
+        simple nn to convert features to confidence
+        :param features: list of features tensor
+        :param layers: hidden layers
+        :param out: output shape (used to reshape to required output shape)
+        :param scope_name: tensorflow scope name
+        :param last_activation: activation function for the last layer (None means no activation)
+        :return: likelihood
+        """
+
+        with tf.variable_scope(scope_name) as scopevar:
+            index = 0
+            h = KL.Lambda(lambda x: K.concatenate(x, axis=-1))(features)
+            h = KL.InputLayer(input_tensor=K.concatenate(features, axis=-1))
+            # h = tf.concat(features, axis=-1)
+            for layer in layers:
+                scope = str(index)
+
+                # Two 1024 FC layers (implemented with Conv2D for consistency)
+                h = KL.Dense(layer, activation='relu', name=scope)(h)
+                # h = KL.Lambda(lambda x: tf.layers.dense(x, layer, name='0', activation='relu'))(h)
+                # h = KL.TimeDistributed(KL.Conv2D(layer, (1, 1), padding="valid"), name=scope)(h)
+                # h = KL.Activation('relu')(h)
+                tf.contrib.fully_connected
+                # h = tf.contrib.layers.fully_connected(h, layer, scope=scope, activation_fn=self.activation_fn)
+                index += 1
+
+            scope = str(index)
+            # y = tf.contrib.layers.fully_connected(h, out, scope=scope, activation_fn=last_activation)
+            y = KL.Dense(out, activation=None, name=scope)(h)
+        return y
+
+
+# @todo: delete
 ############################################################
 #  Graph Permeation Invariant Layer
 ############################################################
@@ -359,30 +718,63 @@ class GPILayer(KE.Layer):
     constructor.
     """
 
-    def __init__(self, pool_shape, train_bn=True, fc_layers_size=1024, **kwargs):
+    def __init__(self, single_rois, pairwise_rois, num_rois, scope_name='deep_gpi_graph', **kwargs):
         super(GPILayer, self).__init__(**kwargs)
-        self.fc_layers_size = fc_layers_size
-        self.pool_shape = tuple(pool_shape)
-        self.train_bn = train_bn
+        self.scope_name = scope_name
+        # Single ROIs - [num_boxes , 4]
+        self.single_rois = tf.squeeze(single_rois, axis=[0])
+        # Pairwise ROIs - [num_boxes^2 , 4]
+        self.pairwise_rois = tf.squeeze(pairwise_rois, axis=[0])
+        self.num_rois = num_rois
 
     def call(self, inputs):
-        # Crop boxes [batch, num_boxes, (y1, x1, y2, x2)] in normalized coords
-        boxes = inputs[0]
+        # Crop single features [batch, num_boxes, feature_size]
+        entity_features = inputs[0]
+        # Crop pairwise features [batch, num_boxes^2, feature_size]
+        relation_features = inputs[1]
 
-        # Image meta
-        # Holds details about the image. See compose_image_meta()
-        image_meta = inputs[1]
+        # Ignore the batch axis [num_boxes, 1024]
+        entity_features_sq = tf.squeeze(entity_features, axis=[0])
+        # Ignore the batch axis [num_boxes^2, 1024]
+        relation_features_sq = tf.squeeze(relation_features, axis=[0])
+        # Reshape [num_boxes, num_boxes, 1024]
+        relation_features_sq = tf.reshape(relation_features_sq,
+                                          [self.num_rois, self.num_rois, -1])
 
-        # Feature Maps. List of feature maps from different level of the
-        # feature pyramid. Each is [batch, height, width, channels]
-        feature_maps = inputs[2:]
+        # Number of rois
+        N = tf.slice(tf.shape(entity_features_sq), [0], [1], name="N")
 
-        return feature_maps
+        # Concat relations in the feature axis - [num_boxes, num_boxes, feature_size * 2]
+        relation_features = tf.concat((relation_features_sq, tf.transpose(relation_features_sq, perm=[1, 0, 2])),
+                                      axis=2)
+
+        # Concat spatial features - [num_rois, features_size + 4]
+        entity_features = tf.concat((entity_features_sq, self.single_rois), axis=1)
+        # Shape [num_boxes, num_boxes , 4]
+        shape = tf.concat((N, tf.shape(self.single_rois)), axis=0)
+        # Reshape to [batch, num_boxes, 4]
+        shaped_relation_bb = tf.reshape(self.pairwise_rois, shape)
+        # Concat to feature axis - [batch, num_boxes, feature_size * 2 + 4]
+        relation_features = tf.concat((relation_features, shaped_relation_bb), axis=2)
+
+        # Expand object confidence
+        extended_confidence_entity_shape = tf.concat((N, tf.shape(entity_features)), 0)
+        expand_object_features = tf.add(tf.zeros(extended_confidence_entity_shape), entity_features,
+                                        name="expand_object_features")
+
+        # Expand subject confidence
+        expand_subject_features = tf.transpose(expand_object_features, perm=[1, 0, 2], name="expand_subject_features")
+
+        # Node Neighbours
+        object_ngbrs = [expand_object_features, expand_subject_features, relation_features]
+
+        # apply phi
+        object_ngbrs_phi = self.nn(features=object_ngbrs, layers=[500, 500], out=500, scope_name="nn_phi")
+
+        return []
 
     def compute_output_shape(self, input_shape):
-        return input_shape[0][:2] + self.pool_shape + (input_shape[2][-1],)
-
-
+        return [None, None]
 
 
 ############################################################
@@ -414,11 +806,12 @@ class PyramidROIAlign(KE.Layer):
     constructor.
     """
 
-    def __init__(self, pool_shape, train_bn=True, fc_layers_size=1024, **kwargs):
+    def __init__(self, pool_shape, **kwargs):
         super(PyramidROIAlign, self).__init__(**kwargs)
-        self.fc_layers_size = fc_layers_size
         self.pool_shape = tuple(pool_shape)
-        self.train_bn = train_bn
+
+    def get_outputs(self):
+        return self._outputs
 
     def call(self, inputs):
         # Crop boxes [batch, num_boxes, (y1, x1, y2, x2)] in normalized coords
@@ -479,16 +872,19 @@ class PyramidROIAlign(KE.Layer):
             pooled.append(cropped)
 
             # Concat FC layers (implemented with Conv2D for consistency)
-            x = KL.TimeDistributed(KL.Conv2D(100, (self.pool_shape, self.pool_shape), padding="valid"),
-                                   name="mrcnn_class_conv_" + str(i))(pooled)
-            x = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn_' + str(i))(x, training=self.train_bn)
-            x = KL.Activation('relu')(x)
-            x = KL.Lambda(lambda x: K.squeeze(K.squeeze(x, 3), 2), name="pool_squeeze")(x)
-            pooled_features.append(x)
+            # x = KL.TimeDistributed(KL.Conv2D(100, self.pool_shape, padding="valid"),
+            #                        name="mrcnn_class_conv1_" + str(i))(tf.expand_dims(cropped, 0))
+            # x = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn1_' + str(i))(x, training=self.train_bn)
+            # x = KL.Activation('relu')(x)
+            # x = KL.TimeDistributed(KL.Conv2D(100, (1, 1), padding="valid"), name="mrcnn_class_conv2_" + str(i))(x)
+            # x = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn2_' + str(i))(x, training=self.train_bn)
+            # x = KL.Activation('relu')(x)
+            # x = KL.Lambda(lambda x: K.squeeze(K.squeeze(x, 3), 2), name="pool_squeeze")(x)
+            # pooled_features.append(x)
 
         # Pack pooled features into one tensor
         pooled = tf.concat(pooled, axis=0)
-        pooled_features = tf.concat(pooled_features, axis=0)
+        # pooled_features = tf.concat(pooled_features, axis=1)
 
         # Pack box_to_level mapping into one array and add another column representing the order of pooled boxes
         box_to_level = tf.concat(box_to_level, axis=0)
@@ -499,21 +895,27 @@ class PyramidROIAlign(KE.Layer):
         # Rearrange pooled features to match the order of the original boxes Sort box_to_level by batch then box index
         # TF doesn't have a way to sort by two columns, so merge them and sort.
         sorting_tensor = box_to_level[:, 0] * 100000 + box_to_level[:, 1]
-        ix = tf.nn.top_k(sorting_tensor, k=tf.shape(
-            box_to_level)[0]).indices[::-1]
+        ix = tf.nn.top_k(sorting_tensor, k=tf.shape(box_to_level)[0]).indices[::-1]
         ix = tf.gather(box_to_level[:, 2], ix)
+        # top_ix = tf.slice(ix, [0], [20])
         pooled = tf.gather(pooled, ix)
-        pooled_features = tf.gather(pooled_features, ix)
+        # pooled_topk = tf.gather(pooled, ix)
+        # pooled_features = tf.gather(pooled_features, ix)
 
         # Re-add the batch dimension
         pooled = tf.expand_dims(pooled, 0)
-        pooled_features = tf.expand_dims(pooled_features, 0)
+        # pooled_features = tf.expand_dims(pooled_features, 0)
         # Shape: [batch, num_boxes, pool_height, pool_width, channels]
 
-        return pooled, pooled_features
+        return pooled
+        # return [pooled, pooled_features, ix]
 
     def compute_output_shape(self, input_shape):
         return input_shape[0][:2] + self.pool_shape + (input_shape[2][-1],)
+        # return [None, None, None]
+        # return [input_shape[2][:2] + self.pool_shape + (input_shape[2][-1],),
+        #         input_shape[0],
+        #         input_shape[1][:2]]
 
 
 ############################################################
@@ -967,9 +1369,9 @@ def build_rpn_model(anchor_stride, anchors_per_location, depth):
 #  Feature Pyramid Network Heads
 ############################################################
 
-def fpn_classifier_graph(rois, feature_maps, image_meta,
+def fpn_classifier_graph(self, rois, feature_maps, image_meta,
                          pool_size, num_classes, train_bn=True,
-                         fc_layers_size=1024):
+                         fc_layers_size=1024, num_rois=200):
     """Builds the computation graph of the feature pyramid network classifier
     and regressor heads.
 
@@ -991,46 +1393,71 @@ def fpn_classifier_graph(rois, feature_maps, image_meta,
     """
 
     # ROI Pooling for Objects
-    single_pooled, single_features = PyramidROIAlign([pool_size, pool_size],
-                                                     train_bn=train_bn,
-                                                     fc_layers_size=100,
-                                                     name="roi_align_object_classifier")(
+    # single_pooled - [batch, num_rois, 7, 7, 256]
+    single_pooled = PyramidROIAlign([pool_size, pool_size],
+                                    name="roi_align_object_classifier")(
         [rois, image_meta] + feature_maps)
+    # Two 1024 FC layers (implemented with Conv2D for consistency)
+    x = KL.TimeDistributed(KL.Conv2D(fc_layers_size, (pool_size, pool_size), padding="valid"),
+                           name="mrcnn_class_conv1_single")(single_pooled)
+    x = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn1_single')(x, training=train_bn)
+    x = KL.Activation('relu')(x)
+    x = KL.TimeDistributed(KL.Conv2D(fc_layers_size, (1, 1)), name="mrcnn_class_conv2_single")(x)
+    x = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn2_single')(x, training=train_bn)
+    x = KL.Activation('relu')(x)
+    # shared_single_features - [batch, num_rois, 1024]
+    shared_single_features = KL.Lambda(lambda x: K.squeeze(K.squeeze(x, 3), 2), name="pool_squeeze2")(x)
 
-    pairwise_rois = rois
+    # Get Union Bounding Boxes for pairwise features
+    # pairwise_rois = compute_union_boxes(rois, num_rois)
+    pairwise_rois = compute_union_boxes(rois)
 
     # ROI Pooling for Relations
-    pairwise_pooled, pairwise_features = PyramidROIAlign([pool_size, pool_size],
-                                                         train_bn=train_bn,
-                                                         fc_layers_size=100,
-                                                         name="roi_align_pairwise_classifier")(
+    pairwise_pooled = PyramidROIAlign([pool_size, pool_size], name="roi_align_pairwise_classifier")(
         [pairwise_rois, image_meta] + feature_maps)
 
-    shared = GPILayer(pairwise_features=pairwise_features,
-                      single_features=single_features,
-                      scope_name="deep_gpi_graph")([])
+    # Two 1024 FC layers (implemented with Conv2D for consistency)
+    xx = KL.TimeDistributed(KL.Conv2D(fc_layers_size, (pool_size, pool_size), padding="valid"),
+                            name="mrcnn_class_conv1_pairwise")(pairwise_pooled)
+    xx = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn1_pairwise')(xx, training=train_bn)
+    xx = KL.Activation('relu')(xx)
+    xx = KL.TimeDistributed(KL.Conv2D(fc_layers_size, (1, 1)),
+                            name="mrcnn_class_conv2_pairwise")(xx)
+    xx = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn2_pairwise')(xx, training=train_bn)
+    xx = KL.Activation('relu')(xx)
+    shared_pairwise_features = KL.Lambda(lambda xx: K.squeeze(K.squeeze(xx, 3), 2), name="pool_squeeze2")(xx)
 
-    # # Two 1024 FC layers (implemented with Conv2D for consistency)
-    # x = KL.TimeDistributed(KL.Conv2D(fc_layers_size, (pool_size, pool_size), padding="valid"),
-    #                        name="mrcnn_class_conv1")(x)
-    # x = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn1')(x, training=train_bn)
-    # x = KL.Activation('relu')(x)
-    # x = KL.TimeDistributed(KL.Conv2D(fc_layers_size, (1, 1)), name="mrcnn_class_conv2")(x)
-    # x = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn2')(x, training=train_bn)
-    # x = KL.Activation('relu')(x)
-    #
-    # shared = KL.Lambda(lambda x: K.squeeze(K.squeeze(x, 3), 2), name="pool_squeeze")(x)
+    ############################################################
+    #  Graph Permeation Invariant Model
+    # ----------------------------------------------------------
+    # GPI - Implementation of GPI module in detection.
+    # Paper - https://arxiv.org/abs/1802.05451
+    # Git Implementation in https://github.com/shikorab/SceneGraph
+    ############################################################
+
+    gpi = GPIKerasModel(num_rois, scope_name="deep_gpi_graph")
+    # Init GPI module
+    gpi_module = gpi.build_gpi()
+    # Get entity and relation features
+    entity_features, relation_features = gpi_module(
+        [rois, pairwise_rois, shared_single_features, shared_pairwise_features])
+
+    # Phi
+    object_ngbrs_tensor = gpi.expand_object_subject(entity_features, relation_features)
+    object_phi_tensor = gpi.phi(entity_features, object_ngbrs_tensor)
+    # Alpha
+    graph_encoding = gpi.alpha(object_phi_tensor)
+    # Rho - shared_improved_features - [batch, num_rois, 1024]
+    shared_improved_features = gpi.rho(entity_features, graph_encoding)
 
     # Classifier head
-    mrcnn_class_logits = KL.TimeDistributed(KL.Dense(num_classes),
-                                            name='mrcnn_class_logits')(shared)
-    mrcnn_probs = KL.TimeDistributed(KL.Activation("softmax"),
-                                     name="mrcnn_class")(mrcnn_class_logits)
+    mrcnn_class_logits = KL.TimeDistributed(KL.Dense(num_classes), name='mrcnn_class_logits')(shared_improved_features)
+    mrcnn_probs = KL.TimeDistributed(KL.Activation("softmax"), name="mrcnn_class")(mrcnn_class_logits)
 
     # BBox head
     # [batch, boxes, num_classes * (dy, dx, log(dh), log(dw))]
-    x = KL.TimeDistributed(KL.Dense(num_classes * 4, activation='linear'),
-                           name='mrcnn_bbox_fc')(shared)
+    x = KL.TimeDistributed(KL.Dense(num_classes * 4, activation='linear'), name='mrcnn_bbox_fc')(
+        shared_improved_features)
     # Reshape to [batch, boxes, num_classes, (dy, dx, log(dh), log(dw))]
     s = K.int_shape(x)
     mrcnn_bbox = KL.Reshape((s[1], num_classes, 4), name="mrcnn_bbox")(x)
@@ -2068,67 +2495,21 @@ class MaskRCNN():
 
             # Network Heads
             # TODO: verify that this handles zero padded ROIs
-
-            func = K.function([input_image, input_image_meta, input_rpn_match, input_rpn_bbox,
-                               input_gt_class_ids, input_gt_boxes, input_gt_masks],
-                              [rois])
-
-            import cPickle
-            inputs = cPickle.load(open("/specific/netapp5_2/gamir/DER-Roei/RelationMaskRCNN/inputs.p"))
-            input_image = inputs[0]
-            input_image_meta = inputs[1]
-            input_rpn_match = inputs[2]
-            input_rpn_bbox = inputs[3]
-            input_gt_class_ids = inputs[4]
-            input_gt_boxes = inputs[5]
-            input_gt_masks = inputs[6]
-
-            rois = func([input_image, input_image_meta, input_rpn_match, input_rpn_bbox, input_gt_class_ids,
-                        input_gt_boxes, input_gt_masks])
-            rois = rois[0]
-            y1, x1, y2, x2 = tf.split(rois, 4, axis=2)
-            # Get the number of the boxes
-            num_boxes = tf.shape(rois)[1]
-            # [x1, x1...,   x2, x2,..., xn,  xn....] [1, num_rois x (num_rois - 1)]
-            x1_duplicated = tf.reshape(tf.tile(x1[0],  [1, num_boxes - 1]), (-1,))
-            # [-,x2..., xn, x1, -, ..., xn,  x1...-] [1, num_rois x (num_rois - 1)]
-            x2_duplicated = tf.reshape(tf.tile(x2[0],  [1, num_boxes - 1]), (-1,))
-            # [y1, y1...,y2, y2,..., yn, yn...] [1, num_rois x num_rois]
-            y1_duplicated = tf.reshape(tf.tile(y1[0],  [1, num_boxes]), (-1,))
-            y2_duplicated = tf.reshape(tf.tile(y2[0],  [1, num_boxes]), (-1,))
-
-            x1_reshaped = tf.reshape(x1, (-1,))
-            x2_reshaped = tf.reshape(x2, (-1,))
-            y1_reshaped = tf.reshape(y1, (-1,))
-            y2_reshaped = tf.reshape(y2, (-1,))
-
-
-            pairwise_rois = tf.zeros((1, num_boxes * num_boxes, 4))
-            pairwise_rois = []
-            # for i in range(num_boxes * num_boxes):
-            #     for j in range(num_boxes * num_boxes):
-
-            sess = K.get_session()
-            sess.run()
-            tt = sess.run(x1)
-            tt[0][2] = 1
-            aa = tt.reshape(-1)
-
-            tile_a = tf.tile(tf.expand_dims(x1_reshaped, 1), [1, tf.shape(x2_reshaped)[0]])
-            tile_a = tf.expand_dims(tile_a, 2)
-            tile_b = tf.tile(tf.expand_dims(x2_reshaped, 0), [tf.shape(x1_reshaped)[0], 1])
-            tile_b = tf.expand_dims(tile_b, 2)
-            cartesian_product = tf.concat([tile_a, tile_b], axis=2)
-
-
-
-
+            # @todo: delete this
+            self._input_image = input_image
+            self._input_image_meta = input_image_meta
+            self._input_rpn_match = input_rpn_match
+            self._input_rpn_bbox = input_rpn_bbox
+            self._input_gt_class_ids = input_gt_class_ids
+            self._input_gt_boxes = input_gt_boxes
+            self._input_gt_masks = input_gt_masks
 
             mrcnn_class_logits, mrcnn_class, mrcnn_bbox = \
-                fpn_classifier_graph(rois, mrcnn_feature_maps, input_image_meta,
+                fpn_classifier_graph(self, rois, mrcnn_feature_maps, input_image_meta,
                                      config.POOL_SIZE, config.NUM_CLASSES,
                                      train_bn=config.TRAIN_BN,
-                                     fc_layers_size=config.FPN_CLASSIF_FC_LAYERS_SIZE)
+                                     fc_layers_size=config.FPN_CLASSIF_FC_LAYERS_SIZE,
+                                     num_rois=config.TRAIN_ROIS_PER_IMAGE)
 
             mrcnn_mask = build_fpn_mask_graph(rois, mrcnn_feature_maps,
                                               input_image_meta,
@@ -2165,7 +2546,7 @@ class MaskRCNN():
             # Network Heads
             # Proposal classifier and BBox regressor heads
             mrcnn_class_logits, mrcnn_class, mrcnn_bbox = \
-                fpn_classifier_graph(rpn_rois, mrcnn_feature_maps, input_image_meta,
+                fpn_classifier_graph(self, rpn_rois, mrcnn_feature_maps, input_image_meta,
                                      config.POOL_SIZE, config.NUM_CLASSES,
                                      train_bn=config.TRAIN_BN,
                                      fc_layers_size=config.FPN_CLASSIF_FC_LAYERS_SIZE)
