@@ -9,10 +9,9 @@ sys.path.append(ROOT_DIR)  # To find local version of the library
 
 # Root directory of the project
 from Utils import create_folder
-from samples.coco.coco import CocoConfig, CocoDataset
+from samples.coco.coco import CocoConfig, CocoDataset, evaluate_coco
 from mrcnn import model as modellib
 import argparse
-
 
 # Path to trained weights file
 MODEL_PATH = os.path.join(ROOT_DIR, 'weights')
@@ -72,12 +71,21 @@ if __name__ == '__main__':
     # Define GPU training
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
 
-    # Configurations training
-    config = CocoConfig()
+    # Configurations
+    class InferenceConfig(CocoConfig):
+        # Set batch size to 1 since we'll be running inference on one image at a time.
+        # Batch size = GPU_COUNT * IMAGES_PER_GPU
+        GPU_COUNT = 1
+        IMAGES_PER_GPU = 1
+        DETECTION_MIN_CONFIDENCE = 0
+
+
+    config = InferenceConfig()
     config.display()
 
     # Create model
-    model = modellib.MaskRCNN(mode="training", config=config, model_dir=args.logs)
+    model = modellib.MaskRCNN(mode="inference", config=config,
+                              model_dir=args.logs)
 
     # Select weights file to load
     if args.model.lower() == "coco":
@@ -101,27 +109,10 @@ if __name__ == '__main__':
     # create_folder(model_path)
     # model_path = os.path.join(model_path, stmp, "mask_rcnn.h5")
 
-    # Training dataset. Use the training set and 35K from the validation set, as as in the Mask RCNN paper.
-    dataset_train = CocoDataset()
-    dataset_train.load_coco(args.dataset, "train", year=args.year, auto_download=args.download)
-    # dataset_train.load_coco(args.dataset, "valminusminival", year=args.year, auto_download=args.download)
-    dataset_train.prepare()
-
-    # Validation dataset
+    # Testing dataset
     dataset_val = CocoDataset()
-    dataset_val.load_coco(args.dataset, "val", year=args.year, auto_download=args.download)
+    coco = dataset_val.load_coco(args.dataset, "val", year=args.year, return_coco=True,
+                                 auto_download=args.download)
     dataset_val.prepare()
-
-    # Image Augmentation
-    # Right/Left flip 50% of the time
-    # augmentation = imgaug.augmenters.Fliplr(0.5)
-    augmentation = None
-
-    # Training - Fine tune all layers
-    print("Fine tune all layers")
-    model.train(dataset_train, dataset_val,
-                learning_rate=config.LEARNING_RATE / 10,
-                epochs=160,
-                layers='all',
-                augmentation=augmentation)
-
+    print("Running COCO evaluation on {} images.".format(args.limit))
+    evaluate_coco(model, dataset_val, coco, "bbox", limit=int(args.limit))
