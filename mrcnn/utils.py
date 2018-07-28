@@ -904,7 +904,33 @@ def denorm_boxes(boxes, shape):
     return np.around(np.multiply(boxes, scale) + shift).astype(np.int32)
 
 
-def compute_union_boxes(boxes, num_rois):
+def compute_union_boxes(boxes):
+    """
+    This function calculates the union bounding boxes given n boxes
+    :param boxes: [batch, num_boxes, (y1, x1, y2, x2)] Proposal boxes in normalized coordinates.
+    :return: n^2 boxes [(y1, x1, y2, x2)]
+    """
+
+    y1, x1, y2, x2 = tf.split(boxes, 4, axis=2)
+    sub_x1, obj_x1 = tf.meshgrid(x1, x1)
+    sub_y1, obj_y1 = tf.meshgrid(y1, y1)
+    sub_x2, obj_x2 = tf.meshgrid(x2, x2)
+    sub_y2, obj_y2 = tf.meshgrid(y2, y2)
+
+    pw_x1 = tf.minimum(sub_x1, obj_x1)
+    pw_y1 = tf.minimum(sub_y1, obj_y1)
+    pw_x2 = tf.maximum(sub_x2, obj_x2)
+    pw_y2 = tf.maximum(sub_y2, obj_y2)
+
+    # returns [batch, num_boxes, num_boxes, (y1, x1, y2, x2)]
+    new_boxes = tf.stack([pw_y1, pw_x1, pw_y2, pw_x2], axis=-1)
+    new_boxes = tf.expand_dims(new_boxes, axis=0)
+
+    return new_boxes
+
+
+# @todo: delete
+def compute_old_union_boxes(boxes, num_rois):
     """
     This function calculates the union bounding boxes given n boxes
     :param boxes: [batch, num_boxes, (y1, x1, y2, x2)] Proposal boxes in normalized coordinates.
