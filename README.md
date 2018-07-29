@@ -1,2 +1,2 @@
 # RelationMaskRCNN
-Implementation of GPI on MaskRCNN
+Implementation of GPI in MaskRCNN
