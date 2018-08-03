@@ -398,7 +398,6 @@ class PyramidROIAlign(KE.Layer):
 
         # Loop through levels and apply ROI pooling to each. P2 to P5.
         pooled = []
-        pooled_features = []
         box_to_level = []
         for i, level in enumerate(range(2, 6)):
             ix = tf.where(tf.equal(roi_level, level))
@@ -427,17 +426,6 @@ class PyramidROIAlign(KE.Layer):
                                                method="bilinear")
             pooled.append(cropped)
 
-            # Concat FC layers (implemented with Conv2D for consistency)
-            # x = KL.TimeDistributed(KL.Conv2D(100, self.pool_shape, padding="valid"),
-            #                        name="mrcnn_class_conv1_" + str(i))(tf.expand_dims(cropped, 0))
-            # x = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn1_' + str(i))(x, training=self.train_bn)
-            # x = KL.Activation('relu')(x)
-            # x = KL.TimeDistributed(KL.Conv2D(100, (1, 1), padding="valid"), name="mrcnn_class_conv2_" + str(i))(x)
-            # x = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn2_' + str(i))(x, training=self.train_bn)
-            # x = KL.Activation('relu')(x)
-            # x = KL.Lambda(lambda x: K.squeeze(K.squeeze(x, 3), 2), name="pool_squeeze")(x)
-            # pooled_features.append(x)
-
         # Pack pooled features into one tensor
         pooled = tf.concat(pooled, axis=0)
         # pooled_features = tf.concat(pooled_features, axis=1)
@@ -453,25 +441,14 @@ class PyramidROIAlign(KE.Layer):
         sorting_tensor = box_to_level[:, 0] * 100000 + box_to_level[:, 1]
         ix = tf.nn.top_k(sorting_tensor, k=tf.shape(box_to_level)[0]).indices[::-1]
         ix = tf.gather(box_to_level[:, 2], ix)
-        # top_ix = tf.slice(ix, [0], [20])
         pooled = tf.gather(pooled, ix)
-        # pooled_topk = tf.gather(pooled, ix)
-        # pooled_features = tf.gather(pooled_features, ix)
 
         # Re-add the batch dimension
         pooled = tf.expand_dims(pooled, 0)
-        # pooled_features = tf.expand_dims(pooled_features, 0)
-        # Shape: [batch, num_boxes, pool_height, pool_width, channels]
-
         return pooled
-        # return [pooled, pooled_features, ix]
 
     def compute_output_shape(self, input_shape):
         return input_shape[0][:2] + self.pool_shape + (input_shape[2][-1],)
-        # return [None, None, None]
-        # return [input_shape[2][:2] + self.pool_shape + (input_shape[2][-1],),
-        #         input_shape[0],
-        #         input_shape[1][:2]]
 
 
 ############################################################
@@ -882,7 +859,7 @@ class UnionROISLayer(KE.Layer):
         return new_boxes
 
     def compute_output_shape(self, input_shape):
-        return (self.batch_size, self.num_rois, 4)
+        return (self.batch_size, self.num_rois, self.num_rois, 4)
 
 
 class ExpandLayer(KE.Layer):
@@ -1018,12 +995,14 @@ def fpn_classifier_graph(rois, feature_maps, image_meta, pool_size, num_classes,
     # shared_single_features - [batch, num_rois, 1024]
     shared_single_features = KL.Lambda(lambda x: K.squeeze(K.squeeze(x, 3), 2), name="pool_squeeze_single")(x)
 
-    # Get Union Bounding Boxes for pairwise features
+    # Get Union Bounding Boxes for pairwise features - [batch, num_boxes, num_boxes, (y1, x1, y2, x2)]
     pairwise_rois = UnionROISLayer(num_rois=num_rois, name="union_rois")([rois])
+    # Reshape - [batch, num_boxes * num_boxes, (y1, x1, y2, x2)]
+    pairwise_rois_reshaped = KL.Reshape((num_rois * num_rois, 4), name="pairwise_rois_reshaped")(pairwise_rois)
 
     # ROI Pooling for Relations
     pairwise_pooled = PyramidROIAlign([pool_size, pool_size], name="roi_align_pairwise_classifier")(
-        [pairwise_rois, image_meta] + feature_maps)
+        [pairwise_rois_reshaped, image_meta] + feature_maps)
 
     # Two 1024 FC layers (implemented with Conv2D for consistency)
     xx = KL.TimeDistributed(KL.Conv2D(fc_layers_size, (pool_size, pool_size), padding="valid"),
@@ -2199,7 +2178,6 @@ class MaskRCNN():
                        rpn_rois, output_rois,
                        rpn_class_loss, rpn_bbox_loss, class_loss, bbox_loss, mask_loss]
             model = KM.Model(inputs, outputs, name='mask_rcnn')
-            print("test")
         else:
             # Network Heads
             # Proposal classifier and BBox regressor heads
@@ -2209,9 +2187,7 @@ class MaskRCNN():
                                      train_bn=config.TRAIN_BN,
                                      fc_layers_size=config.FPN_CLASSIF_FC_LAYERS_SIZE,
                                      num_rois=config.POST_NMS_ROIS_INFERENCE)
-            model = KM.Model([input_image, input_image_meta, input_anchors],
-                             [mrcnn_class, mrcnn_bbox, rpn_rois, rpn_class, rpn_bbox],
-                             name='mask_rcnn')
+
             # Detections output is [batch, num_detections, (y1, x1, y2, x2, class_id, score)] in normalized coordinates
             detections = DetectionLayer(config, name="mrcnn_detection")(
                 [rpn_rois, mrcnn_class, mrcnn_bbox, input_image_meta])
