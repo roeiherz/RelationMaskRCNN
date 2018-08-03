@@ -49,6 +49,8 @@ class GPIKerasModel(object):
 
         # Concat spatial features - [batch, num_boxes, features_size + 4]
         entity_features = KL.concatenate(inputs=[self.entity_features, self.single_rois], axis=2)
+        # Reshape to [batch, num_boxes, features_size + 4]
+        entity_features = KL.Reshape((self.num_rois, K.int_shape(entity_features)[2]))(entity_features)
         # Reshape to [batch, num_boxes, num_boxes, 4]
         shaped_relation_bb = KL.Reshape((self.num_rois, self.num_rois, 4))(self.pairwise_rois)
         # Concat to feature axis - [batch, num_boxes, num_boxes, feature_size * 2 + 4]
@@ -69,17 +71,21 @@ class GPIKerasModel(object):
         # [num_boxes, num_boxes, features_size + 4]
         extended_confidence_entity_shape = (self.num_rois, self.num_rois, entity_features.shape[2])
         # [num_boxes, num_boxes, features_size + 4]
-        expand_object_features = KL.add([K.zeros(extended_confidence_entity_shape), K.squeeze(entity_features, 0)],
+        # expand_object_features = KL.add([K.zeros(extended_confidence_entity_shape), K.squeeze(entity_features, 0)],
+        #                                 name="expand_object_features")
+        expand_object_features = tf.add(tf.zeros(extended_confidence_entity_shape), tf.squeeze(entity_features, 0),
                                         name="expand_object_features")
         # Add batch - [batch, num_boxes, num_boxes, features_size + 4]
-        expand_object_features = KL.Lambda(lambda x: K.expand_dims(x, axis=0))(expand_object_features)
+        # expand_object_features = KL.Lambda(lambda x: K.expand_dims(x, axis=0))(expand_object_features)
 
         # Expand subject confidence
-        expand_subject_features = KL.Permute(dims=[2, 1, 3], name="expand_subject_features")(expand_object_features)
+        # expand_subject_features = KL.Permute(dims=[2, 1, 3], name="expand_subject_features")(expand_object_features)
+        expand_subject_features = tf.transpose(expand_object_features, perm=[1, 0, 2], name="expand_subject_features")
 
         # Node Neighbours
-        object_ngbrs = [expand_object_features, expand_subject_features, relation_features]
-        object_ngbrs_tensor = KL.Lambda(lambda x: K.concatenate(x, axis=-1))(object_ngbrs)
+        object_ngbrs = [expand_object_features, expand_subject_features, tf.squeeze(relation_features, 0)]
+        # object_ngbrs_tensor = KL.Lambda(lambda x: K.concatenate(x, axis=-1))(object_ngbrs)
+        object_ngbrs_tensor = tf.concat(object_ngbrs, axis=-1)
 
         return object_ngbrs_tensor
 
@@ -91,17 +97,17 @@ class GPIKerasModel(object):
         """
 
         # Phi
-        object_ngbrs_phi = self.mlp_model(features=object_ngbrs_tensor, size=object_ngbrs_tensor.shape[3],
+        object_ngbrs_phi = self.mlp_model(features=object_ngbrs_tensor, size=object_ngbrs_tensor.shape[2],
                                           layers=[500, 500], out=500, scope_name="nn_phi")
         # Attention mechanism over phi
         if self.gpi_type == "FeatureAttention" or self.gpi_type == "Linguistic":
-            object_ngbrs_scores = self.mlp_model(features=object_ngbrs_tensor, size=object_ngbrs_tensor.shape[3],
+            object_ngbrs_scores = self.mlp_model(features=object_ngbrs_tensor, size=object_ngbrs_tensor.shape[2],
                                                  layers=[500], out=500, scope_name="nn_phi_atten")
             object_ngbrs_weights = tf.nn.softmax(object_ngbrs_scores, axis=1)
             object_ngbrs_phi_all = tf.reduce_sum(tf.multiply(object_ngbrs_phi, object_ngbrs_weights), axis=1)
 
         elif self.gpi_type == "NeighbourAttention":
-            object_ngbrs_scores = self.mlp_model(features=object_ngbrs_tensor, size=object_ngbrs_tensor.shape[3],
+            object_ngbrs_scores = self.mlp_model(features=object_ngbrs_tensor, size=object_ngbrs_tensor.shape[2],
                                                  layers=[500], out=1, scope_name="nn_phi_atten")
             object_ngbrs_weights = tf.nn.softmax(object_ngbrs_scores, axis=1)
             object_ngbrs_phi_all = tf.reduce_sum(tf.multiply(object_ngbrs_phi, object_ngbrs_weights), axis=1)
@@ -109,8 +115,9 @@ class GPIKerasModel(object):
             object_ngbrs_phi_all = tf.reduce_sum(object_ngbrs_phi, axis=1) / tf.constant(40.0)
 
         # Nodes
-        object_ngbrs2 = [entity_features, object_ngbrs_phi_all]
-        object_ngbrs2_tensor = KL.Lambda(lambda x: K.concatenate(x, axis=-1))(object_ngbrs2)
+        object_ngbrs2 = [tf.squeeze(entity_features, 0), object_ngbrs_phi_all]
+        # object_ngbrs2_tensor = KL.Lambda(lambda x: K.concatenate(x, axis=-1))(object_ngbrs2)
+        object_ngbrs2_tensor = tf.concat(object_ngbrs2, axis=-1)
         return object_ngbrs2_tensor
 
     def alpha(self, object_ngbrs2_tensor, scope_name="deep_graph_alpha"):
@@ -121,17 +128,17 @@ class GPIKerasModel(object):
         """
 
         # Alpha
-        object_ngbrs2_alpha = self.mlp_model(features=object_ngbrs2_tensor, size=object_ngbrs2_tensor.shape[2],
+        object_ngbrs2_alpha = self.mlp_model(features=object_ngbrs2_tensor, size=object_ngbrs2_tensor.shape[1],
                                              layers=[500, 500], out=500, scope_name="nn_phi2")
 
         # Attention mechanism over alpha
         if self.gpi_type == "FeatureAttention" or self.gpi_type == "Linguistic":
-            object_ngbrs2_scores = self.mlp_model(features=object_ngbrs2_tensor, size=object_ngbrs2_tensor.shape[2],
+            object_ngbrs2_scores = self.mlp_model(features=object_ngbrs2_tensor, size=object_ngbrs2_tensor.shape[1],
                                                   layers=[500], out=500, scope_name="nn_phi2_atten")
             object_ngbrs2_weights = tf.nn.softmax(object_ngbrs2_scores, axis=0)
             object_ngbrs2_alpha_all = tf.reduce_sum(tf.multiply(object_ngbrs2_alpha, object_ngbrs2_weights), axis=0)
         elif self.gpi_type == "NeighbourAttention":
-            object_ngbrs2_scores = self.mlp_model(features=object_ngbrs2_tensor, size=object_ngbrs2_tensor.shape[2],
+            object_ngbrs2_scores = self.mlp_model(features=object_ngbrs2_tensor, size=object_ngbrs2_tensor.shape[1],
                                                   layers=[500], out=1, scope_name="nn_phi2_atten")
             object_ngbrs2_weights = tf.nn.softmax(object_ngbrs2_scores, axis=0)
             object_ngbrs2_alpha_all = tf.reduce_sum(tf.multiply(object_ngbrs2_alpha, object_ngbrs2_weights), axis=0)
@@ -139,9 +146,11 @@ class GPIKerasModel(object):
             object_ngbrs2_alpha_all = tf.reduce_sum(object_ngbrs2_alpha, axis=0) / tf.constant(40.0)
 
         # [num_boxes, 500]
-        expand_graph = KL.add([K.zeros(object_ngbrs2_alpha_all.shape), object_ngbrs2_alpha_all], name="expand_graph")
+        # expand_graph = KL.add([K.zeros(object_ngbrs2_alpha_all.shape), object_ngbrs2_alpha_all], name="expand_graph")
+        expand_graph_sh = (self.num_rois,) + K.int_shape(object_ngbrs2_alpha_all)
+        expand_graph = tf.add(tf.zeros(expand_graph_sh), object_ngbrs2_alpha_all, name="expand_graph")
         # Add batch - [batch, num_boxes, 500]
-        expand_graph = KL.Lambda(lambda x: K.expand_dims(x, axis=0))(expand_graph)
+        # expand_graph = KL.Lambda(lambda x: K.expand_dims(x, axis=0))(expand_graph)
         return expand_graph
 
     def rho(self, entity_features, object_alpha_tensor, scope_name="deep_graph_rho"):
@@ -153,13 +162,15 @@ class GPIKerasModel(object):
 
         # rho entity (entity prediction)
         # The input is entity features, entity neighbour features and the representation of the graph
-        object_all_features = [entity_features, object_alpha_tensor]
-        object_all_features_tensor = KL.Lambda(lambda x: K.concatenate(x, axis=-1))(object_all_features)
+        object_all_features = [tf.squeeze(entity_features, 0), object_alpha_tensor]
+        # object_all_features_tensor = KL.Lambda(lambda x: K.concatenate(x, axis=-1))(object_all_features)
+        object_all_features_tensor = tf.concat(object_all_features, axis=-1)
 
         out_feature_object = self.mlp_model(features=object_all_features_tensor,
                                             size=object_all_features_tensor.shape[1],
                                             layers=[500, 500], out=1024, scope_name="nn_obj")
-        out_feature_object = KL.Lambda(lambda x: x, name="out_feature_object")(out_feature_object)
+        # out_feature_object = KL.Lambda(lambda x: x, name="out_feature_object")(out_feature_object)
+        # out_feature_object = tf.expand_dims(out_feature_object, axis=0)
         return out_feature_object
 
     def mlp_model(self, features, size, layers, out, scope_name='', last_activation=None):
@@ -174,15 +185,19 @@ class GPIKerasModel(object):
         """
 
         with tf.variable_scope(scope_name) as scopevar:
-            input_layer = KL.Input(shape=tuple(features.get_shape().as_list()[1:]))
+            # input_layer = KL.Input(shape=tuple(features.get_shape().as_list()[1:]))
             # features.shape[1:]
-            h = input_layer
+            h = features
             for i, layer in enumerate(layers):
-                h = KL.Dense(layer, activation='relu', name='{}'.format(i))(h)
+                # h = KL.Dense(layer, activation='relu', name='{}'.format(i))(h)
+                h = tf.contrib.layers.fully_connected(h, layer, scope='{}'.format(i),
+                                                      activation_fn=self.activation_fn)
 
-            out_layer = KL.Dense(out, name='out')(h)
+            # out_layer = KL.Dense(out, name='out')(h)
+            y = tf.contrib.layers.fully_connected(h, out, scope='{}'.format(i+1), activation_fn=last_activation)
 
             # Create Model
-            m = KM.Model(inputs=[input_layer], outputs=[out_layer])
+            # m = KM.Model(inputs=[input_layer], outputs=[out_layer])
 
-        return m(features)
+        # return m(features)
+        return y

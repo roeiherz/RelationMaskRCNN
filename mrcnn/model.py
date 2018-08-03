@@ -23,15 +23,10 @@ import keras.backend as K
 import keras.layers as KL
 import keras.engine as KE
 import keras.models as KM
-from keras import Model
-
 from mrcnn import utils
-
 # Requires TensorFlow 1.3+ and Keras 2.0.8+.
 from distutils.version import LooseVersion
-
-from mrcnn.utils import compute_union_boxes, compute_union_boxes
-from mrcnn.GPIKerasModule import GPIKerasModel
+from mrcnn.GPIKerasLayer import GPIKerasLayer, GPIKerasExpandLayer, GPIKerasExpandGraphLayer
 
 assert LooseVersion(tf.__version__) >= LooseVersion("1.3")
 assert LooseVersion(keras.__version__) >= LooseVersion('2.0.8')
@@ -331,450 +326,11 @@ class ProposalLayer(KE.Layer):
             proposals = tf.pad(proposals, [(0, padding), (0, 0)])
             return proposals
 
-        proposals = utils.batch_slice([boxes, scores], nms,
-                                      self.config.IMAGES_PER_GPU)
+        proposals = utils.batch_slice([boxes, scores], nms, self.config.IMAGES_PER_GPU)
         return proposals
 
     def compute_output_shape(self, input_shape):
         return (None, self.proposal_count, 4)
-
-
-# @todo: delete
-############################################################
-#  Graph Permeation Invariant Model
-############################################################
-
-class GPILayerModel(object):
-    def __init__(self, num_rois, single_rois=None, pairwise_rois=None, rnn_steps=1, gpi_type='FeatureAttention',
-                 scope_name='deep_gpi_graph'):
-        self.scope_name = scope_name
-        # Single ROIs - [batch, num_boxes , 4]
-        self.single_rois = KL.Input(shape=[None, 4], name="obj_bb")
-        # Pairwise ROIs - [batch, num_boxes^2 , 4]
-        self.pairwise_rois = KL.Input(shape=[None, 4], name="relation_bb")
-        # Object features - [batch ,num_boxes , 4]
-        self.entity_features = KL.Input(shape=[None, 1024], name="entity_features")
-        # Relation features - [batch ,num_boxes , 4]
-        self.relation_features = KL.Input(shape=[None, 1024], name="relation_features")
-        self.num_rois = num_rois
-        self.gpi_type = gpi_type
-        self.rnn_steps = max(1, rnn_steps)
-        self.activation_fn = tf.nn.relu
-        self.feature_size = 1024
-
-    def run_gpi(self, inputs):
-        """
-        
-        :return: 
-        """
-
-        # Crop single features [batch, num_boxes, feature_size]
-        entity_features = inputs[0]
-        # Crop pairwise features [batch, num_boxes^2, feature_size]
-        relation_features = inputs[1]
-
-        # features msg
-        for step in range(self.rnn_steps):
-            object_feature = self.build_gpi(relation_features=relation_features,
-                                            entity_features=entity_features,
-                                            scope_name="deep_graph")
-            # store the confidence
-            # self.out_confidence_entity_lst.append(confidence_entity)
-            # self.reuse = True
-
-        return object_feature
-
-    def init_gpi(self, scope_name="deep_graph_init"):
-        """
-        
-        :param inputs: 
-        :return: 
-        """
-        # Reshape [batch, num_boxes, num_boxes, 1024]
-        relation_features_rs = KL.Reshape((self.num_rois, self.num_rois, self.feature_size))(self.relation_features)
-
-        relation_features_pr = KL.Permute(dims=[2, 1, 3])(relation_features_rs)
-        # Concat relations in the feature axis - [batch_num, num_boxes, num_boxes, feature_size * 2]
-        relation_features = KL.concatenate(inputs=[relation_features_rs, relation_features_pr], axis=3)
-
-        # Concat spatial features - [batch, num_boxes, features_size + 4]
-        entity_features = KL.concatenate(inputs=[self.entity_features, self.single_rois], axis=2)
-        # Reshape to [batch, num_boxes, num_boxes, 4]
-        shaped_relation_bb = KL.Reshape((self.num_rois, self.num_rois, 4))(self.pairwise_rois)
-        # Concat to feature axis - [batch, num_boxes, num_boxes, feature_size * 2 + 4]
-        relation_features = KL.concatenate(inputs=[relation_features, shaped_relation_bb], axis=3)
-
-        m = KM.Model([self.single_rois, self.pairwise_rois, self.entity_features, self.relation_features],
-                     [entity_features, relation_features])
-
-        return m
-
-    def expand_object_subject(self, entity_features, relation_features, scope_name="deep_graph_expand"):
-        """
-        
-        :param inputs: 
-        :return: 
-        """
-        # Expand object confidence
-        # [num_boxes, num_boxes, features_size + 4]
-        extended_confidence_entity_shape = (self.num_rois, self.num_rois, entity_features.shape[2])
-        # [num_boxes, num_boxes, features_size + 4]
-        expand_object_features = KL.add([K.zeros(extended_confidence_entity_shape), K.squeeze(entity_features, 0)],
-                                        name="expand_object_features")
-        # Add batch - [batch, num_boxes, num_boxes, features_size + 4]
-        expand_object_features = KL.Lambda(lambda x: K.expand_dims(x, axis=0))(expand_object_features)
-
-        # Expand subject confidence
-        expand_subject_features = KL.Permute(dims=[2, 1, 3], name="expand_subject_features")(expand_object_features)
-
-        # Node Neighbours
-        object_ngbrs = [expand_object_features, expand_subject_features, relation_features]
-        object_ngbrs_tensor = KL.Lambda(lambda x: K.concatenate(x, axis=-1))(object_ngbrs)
-
-        return object_ngbrs_tensor
-
-    def phi(self, entity_features, object_ngbrs_tensor, scope_name="deep_graph_phi"):
-        """
-        
-        :param inputs: 
-        :return: 
-        """
-
-        # Phi
-        object_ngbrs_phi = self.mlp_model(features=object_ngbrs_tensor, size=object_ngbrs_tensor.shape[3],
-                                          layers=[500, 500], out=500, scope_name="nn_phi")
-        # Attention mechanism over phi
-        if self.gpi_type == "FeatureAttention" or self.gpi_type == "Linguistic":
-            object_ngbrs_scores = self.mlp_model(features=object_ngbrs_tensor, size=object_ngbrs_tensor.shape[3],
-                                                 layers=[500], out=500, scope_name="nn_phi_atten")
-            object_ngbrs_weights = tf.nn.softmax(object_ngbrs_scores, axis=1)
-            object_ngbrs_phi_all = tf.reduce_sum(tf.multiply(object_ngbrs_phi, object_ngbrs_weights), axis=1)
-
-        elif self.gpi_type == "NeighbourAttention":
-            object_ngbrs_scores = self.mlp_model(features=object_ngbrs_tensor, size=object_ngbrs_tensor.shape[3],
-                                                 layers=[500], out=1, scope_name="nn_phi_atten")
-            object_ngbrs_weights = tf.nn.softmax(object_ngbrs_scores, axis=1)
-            object_ngbrs_phi_all = tf.reduce_sum(tf.multiply(object_ngbrs_phi, object_ngbrs_weights), axis=1)
-        else:
-            object_ngbrs_phi_all = tf.reduce_sum(object_ngbrs_phi, axis=1) / tf.constant(40.0)
-
-        # Nodes
-        object_ngbrs2 = [entity_features, object_ngbrs_phi_all]
-        object_ngbrs2_tensor = KL.Lambda(lambda x: K.concatenate(x, axis=-1))(object_ngbrs2)
-        return object_ngbrs2_tensor
-
-    def alpha(self, object_ngbrs2_tensor, scope_name="deep_graph_alpha"):
-        """
-        
-        :param inputs: 
-        :return: 
-        """
-
-        # Alpha
-        object_ngbrs2_alpha = self.mlp_model(features=object_ngbrs2_tensor, size=object_ngbrs2_tensor.shape[2],
-                                             layers=[500, 500], out=500, scope_name="nn_phi2")
-
-        # Attention mechanism over alpha
-        if self.gpi_type == "FeatureAttention" or self.gpi_type == "Linguistic":
-            object_ngbrs2_scores = self.mlp_model(features=object_ngbrs2_tensor, size=object_ngbrs2_tensor.shape[2],
-                                                  layers=[500], out=500, scope_name="nn_phi2_atten")
-            object_ngbrs2_weights = tf.nn.softmax(object_ngbrs2_scores, axis=0)
-            object_ngbrs2_alpha_all = tf.reduce_sum(tf.multiply(object_ngbrs2_alpha, object_ngbrs2_weights), axis=0)
-        elif self.gpi_type == "NeighbourAttention":
-            object_ngbrs2_scores = self.mlp_model(features=object_ngbrs2_tensor, size=object_ngbrs2_tensor.shape[2],
-                                                  layers=[500], out=1, scope_name="nn_phi2_atten")
-            object_ngbrs2_weights = tf.nn.softmax(object_ngbrs2_scores, axis=0)
-            object_ngbrs2_alpha_all = tf.reduce_sum(tf.multiply(object_ngbrs2_alpha, object_ngbrs2_weights), axis=0)
-        else:
-            object_ngbrs2_alpha_all = tf.reduce_sum(object_ngbrs2_alpha, axis=0) / tf.constant(40.0)
-
-        # [num_boxes, 500]
-        expand_graph = KL.add([K.zeros(object_ngbrs2_alpha_all.shape), object_ngbrs2_alpha_all], name="expand_graph")
-        # Add batch - [batch, num_boxes, 500]
-        expand_graph = KL.Lambda(lambda x: K.expand_dims(x, axis=0))(expand_graph)
-        return expand_graph
-
-    def rho(self, entity_features, object_alpha_tensor, scope_name="deep_graph_rho"):
-        """
-        
-        :param inputs: 
-        :return: 
-        """
-
-        # rho entity (entity prediction)
-        # The input is entity features, entity neighbour features and the representation of the graph
-        object_all_features = [entity_features, object_alpha_tensor]
-        object_all_features_tensor = KL.Lambda(lambda x: K.concatenate(x, axis=-1))(object_all_features)
-
-        out_feature_object = self.mlp_model(features=object_all_features_tensor,
-                                            size=object_all_features_tensor.shape[1],
-                                            layers=[500, 500], out=1024, scope_name="nn_obj")
-        out_feature_object = KL.Lambda(lambda x: x, name="out_feature_object")(out_feature_object)
-        return out_feature_object
-
-    def build_gpi(self, entity_features, relation_features, scope_name="deep_graph"):
-        """
-        
-        :param inputs: 
-        :return: 
-        """
-        # Ignore the batch axis [num_boxes, 1024]
-        # entity_features_sq = KL.Lambda(lambda x: K.squeeze(x, 0), name='entity_features_sq')(self.entity_features)
-        # Reshape [batch, num_boxes, num_boxes, 1024]
-        relation_features_rs = KL.Reshape((self.num_rois, self.num_rois, 1024))(self.relation_features)
-        # Ignore the batch axis [num_boxes, num_boxes, 1024]
-        # relation_features_sq = KL.Lambda(lambda x: K.squeeze(x, 0), name='relation_features_sq')(relation_features_rs)
-
-        # Number of boxes
-        # N = tf.slice(tf.shape(entity_features_sq), [0], [1], name="N")
-
-        relation_features_pr = KL.Permute(dims=[2, 1, 3])(relation_features_rs)
-        # Concat relations in the feature axis - [batch_num, num_boxes, num_boxes, feature_size * 2]
-        # relation_features = KL.Lambda(lambda x: K.concatenate(x, axis=3))([relation_features_rs, relation_features_pr])
-        relation_features = KL.concatenate(inputs=[relation_features_rs, relation_features_pr], axis=3)
-
-        # Concat spatial features - [batch, num_boxes, features_size + 4]
-        # entity_features = KL.Lambda(lambda x: K.concatenate(x, axis=2))()
-        entity_features = KL.concatenate(inputs=[self.entity_features, self.single_rois], axis=2)
-        # Reshape to [batch, num_boxes, num_boxes, 4]
-        shaped_relation_bb = KL.Reshape((self.num_rois, self.num_rois, 4))(self.pairwise_rois)
-        # Concat to feature axis - [batch, num_boxes, num_boxes, feature_size * 2 + 4]
-        # relation_features = KL.Lambda(lambda x: K.concatenate(x, axis=3))([])
-        relation_features = KL.concatenate(inputs=[relation_features, shaped_relation_bb], axis=3)
-
-        # Expand object confidence
-        # [num_boxes, num_boxes, features_size + 4]
-        extended_confidence_entity_shape = (self.num_rois, self.num_rois, entity_features.shape[2])
-        # [num_boxes, num_boxes, features_size + 4]
-        expand_object_features = KL.add([K.zeros(extended_confidence_entity_shape), K.squeeze(entity_features, 0)],
-                                        name="expand_object_features")
-        # Add batch - [batch, num_boxes, num_boxes, features_size + 4]
-        expand_object_features = KL.Lambda(lambda x: K.expand_dims(x, axis=0))(expand_object_features)
-
-        # Expand subject confidence
-        expand_subject_features = KL.Permute(dims=[2, 1, 3], name="expand_subject_features")(expand_object_features)
-
-        # Node Neighbours
-        object_ngbrs = [expand_object_features, expand_subject_features, relation_features]
-        object_ngbrs_tensor = KL.Lambda(lambda x: K.concatenate(x, axis=-1))(object_ngbrs)
-
-        # Phi
-        object_ngbrs_phi = self.phi_nn_model(features=object_ngbrs_tensor, layers=[500, 500], out=500,
-                                             scope_name="nn_phi")
-        # object_ngbrs_phi = self.nn_model(features=object_ngbrs, layers=[500, 500], out=500, scope_name="nn_phi")
-        # return KL.Lambda(lambda x: tf.keras.backend.expand_dims(object_ngbrs_phi, axis=0))(relation_features_sq)
-        return object_ngbrs_phi
-
-        # Attention mechanism over phi
-        if self.gpi_type == "FeatureAttention" or self.gpi_type == "Linguistic":
-            object_ngbrs_scores = self.nn_model(features=object_ngbrs, layers=[500], out=500, scope_name="nn_phi_atten")
-            object_ngbrs_weights = tf.nn.softmax(object_ngbrs_scores, axis=1)
-            object_ngbrs_phi_all = tf.reduce_sum(tf.multiply(object_ngbrs_phi, object_ngbrs_weights), axis=1)
-
-        elif self.gpi_type == "NeighbourAttention":
-            object_ngbrs_scores = self.nn_model(features=object_ngbrs, layers=[500], out=1, scope_name="nn_phi_atten")
-            object_ngbrs_weights = tf.nn.softmax(object_ngbrs_scores, axis=1)
-            object_ngbrs_phi_all = tf.reduce_sum(tf.multiply(object_ngbrs_phi, object_ngbrs_weights), axis=1)
-        else:
-            object_ngbrs_phi_all = tf.reduce_sum(object_ngbrs_phi, axis=1) / tf.constant(40.0)
-
-        # Nodes
-        object_ngbrs2 = [entity_features, object_ngbrs_phi_all]
-        # Alpha
-        object_ngbrs2_alpha = self.nn_model(features=object_ngbrs2, layers=[500, 500], out=500, scope_name="nn_phi2")
-
-        # Attention mechanism over alpha
-        if self.gpi_type == "FeatureAttention" or self.gpi_type == "Linguistic":
-            object_ngbrs2_scores = self.nn_model(features=object_ngbrs2, layers=[500], out=500,
-                                                 scope_name="nn_phi2_atten")
-            object_ngbrs2_weights = tf.nn.softmax(object_ngbrs2_scores, axis=0)
-            object_ngbrs2_alpha_all = tf.reduce_sum(tf.multiply(object_ngbrs2_alpha, object_ngbrs2_weights), axis=0)
-        elif self.gpi_type == "NeighbourAttention":
-            object_ngbrs2_scores = self.nn_model(features=object_ngbrs2, layers=[500], out=1,
-                                                 scope_name="nn_phi2_atten")
-            object_ngbrs2_weights = tf.nn.softmax(object_ngbrs2_scores, axis=0)
-            object_ngbrs2_alpha_all = tf.reduce_sum(tf.multiply(object_ngbrs2_alpha, object_ngbrs2_weights), axis=0)
-        else:
-            object_ngbrs2_alpha_all = tf.reduce_sum(object_ngbrs2_alpha, axis=0) / tf.constant(40.0)
-
-        expand_graph_shape = tf.concat((N, tf.shape(object_ngbrs2_alpha_all)), 0)
-        expand_graph = tf.add(tf.zeros(expand_graph_shape), object_ngbrs2_alpha_all)
-
-        ##
-        # rho entity (entity prediction)
-        # The input is entity features, entity neighbour features and the representation of the graph
-        object_all_features = [entity_features, expand_graph]
-        obj_delta = self.nn_model(features=object_all_features, layers=[500, 500, 1024], out=2, scope_name="nn_obj")
-        out_feature_object = obj_delta
-
-        out_feature_object = KL.Lambda(lambda x: x, name="out_feature_object")(out_feature_object)
-        return [out_feature_object]
-
-    def phi_nn_model(self, features, layers, out, scope_name, last_activation=None):
-        """
-        simple nn to convert features to confidence
-        :param features: list of features tensor
-        :param layers: hidden layers
-        :param out: output shape (used to reshape to required output shape)
-        :param scope_name: tensorflow scope name
-        :param last_activation: activation function for the last layer (None means no activation)
-        :return: likelihood
-        """
-
-        input_layer = KL.Input(shape=(self.num_rois, self.num_rois,
-                                      (self.feature_size + 4) * 2 + (self.feature_size * 2) + 4))
-        h = input_layer
-        for i, layer in enumerate(layers):
-            h = KL.Dense(layer, activation='relu', name='{}'.format(i))(h)
-
-        out_layer = KL.Dense(out, name='out')(h)
-
-        # Create Model
-        m = Model(inputs=[input_layer], outputs=[out_layer])
-
-        return m(features)
-
-    def mlp_model(self, features, size, layers, out, scope_name='', last_activation=None):
-        """
-        simple nn to convert features to confidence
-        :param features: keras tensor after concat
-        :param layers: hidden layers
-        :param out: output shape (used to reshape to required output shape)
-        :param scope_name: tensorflow scope name
-        :param last_activation: activation function for the last layer (None means no activation)
-        :return: likelihood
-        """
-
-        with tf.variable_scope(scope_name) as scopevar:
-            input_layer = KL.Input(shape=tuple(features.get_shape().as_list()[1:]))
-            # features.shape[1:]
-            h = input_layer
-            for i, layer in enumerate(layers):
-                h = KL.Dense(layer, activation='relu', name='{}'.format(i))(h)
-
-            out_layer = KL.Dense(out, name='out')(h)
-
-            # Create Model
-            m = Model(inputs=[input_layer], outputs=[out_layer])
-
-        return m(features)
-
-    def nn_model(self, features, layers, out, scope_name, last_activation=None):
-        """
-        simple nn to convert features to confidence
-        :param features: list of features tensor
-        :param layers: hidden layers
-        :param out: output shape (used to reshape to required output shape)
-        :param scope_name: tensorflow scope name
-        :param last_activation: activation function for the last layer (None means no activation)
-        :return: likelihood
-        """
-
-        with tf.variable_scope(scope_name) as scopevar:
-            index = 0
-            h = KL.Lambda(lambda x: K.concatenate(x, axis=-1))(features)
-            h = KL.InputLayer(input_tensor=K.concatenate(features, axis=-1))
-            # h = tf.concat(features, axis=-1)
-            for layer in layers:
-                scope = str(index)
-
-                # Two 1024 FC layers (implemented with Conv2D for consistency)
-                h = KL.Dense(layer, activation='relu', name=scope)(h)
-                # h = KL.Lambda(lambda x: tf.layers.dense(x, layer, name='0', activation='relu'))(h)
-                # h = KL.TimeDistributed(KL.Conv2D(layer, (1, 1), padding="valid"), name=scope)(h)
-                # h = KL.Activation('relu')(h)
-                tf.contrib.fully_connected
-                # h = tf.contrib.layers.fully_connected(h, layer, scope=scope, activation_fn=self.activation_fn)
-                index += 1
-
-            scope = str(index)
-            # y = tf.contrib.layers.fully_connected(h, out, scope=scope, activation_fn=last_activation)
-            y = KL.Dense(out, activation=None, name=scope)(h)
-        return y
-
-
-# @todo: delete
-############################################################
-#  Graph Permeation Invariant Layer
-############################################################
-
-class GPILayer(KE.Layer):
-    """Implements ROI Pooling on multiple levels of the feature pyramid.
-
-    Params:
-    - pool_shape: [height, width] of the output pooled regions. Usually [7, 7]
-
-    Inputs:
-    - boxes: [batch, num_boxes, (y1, x1, y2, x2)] in normalized
-             coordinates. Possibly padded with zeros if not enough
-             boxes to fill the array.
-    - image_meta: [batch, (meta data)] Image details. See compose_image_meta()
-    - Feature maps: List of feature maps from different levels of the pyramid.
-                    Each is [batch, height, width, channels]
-
-    Output:
-    Pooled regions in the shape: [batch, num_boxes, height, width, channels].
-    The width and height are those specific in the pool_shape in the layer
-    constructor.
-    """
-
-    def __init__(self, single_rois, pairwise_rois, num_rois, scope_name='deep_gpi_graph', **kwargs):
-        super(GPILayer, self).__init__(**kwargs)
-        self.scope_name = scope_name
-        # Single ROIs - [num_boxes , 4]
-        self.single_rois = tf.squeeze(single_rois, axis=[0])
-        # Pairwise ROIs - [num_boxes^2 , 4]
-        self.pairwise_rois = tf.squeeze(pairwise_rois, axis=[0])
-        self.num_rois = num_rois
-
-    def call(self, inputs):
-        # Crop single features [batch, num_boxes, feature_size]
-        entity_features = inputs[0]
-        # Crop pairwise features [batch, num_boxes^2, feature_size]
-        relation_features = inputs[1]
-
-        # Ignore the batch axis [num_boxes, 1024]
-        entity_features_sq = tf.squeeze(entity_features, axis=[0])
-        # Ignore the batch axis [num_boxes^2, 1024]
-        relation_features_sq = tf.squeeze(relation_features, axis=[0])
-        # Reshape [num_boxes, num_boxes, 1024]
-        relation_features_sq = tf.reshape(relation_features_sq,
-                                          [self.num_rois, self.num_rois, -1])
-
-        # Number of rois
-        N = tf.slice(tf.shape(entity_features_sq), [0], [1], name="N")
-
-        # Concat relations in the feature axis - [num_boxes, num_boxes, feature_size * 2]
-        relation_features = tf.concat((relation_features_sq, tf.transpose(relation_features_sq, perm=[1, 0, 2])),
-                                      axis=2)
-
-        # Concat spatial features - [num_rois, features_size + 4]
-        entity_features = tf.concat((entity_features_sq, self.single_rois), axis=1)
-        # Shape [num_boxes, num_boxes , 4]
-        shape = tf.concat((N, tf.shape(self.single_rois)), axis=0)
-        # Reshape to [batch, num_boxes, 4]
-        shaped_relation_bb = tf.reshape(self.pairwise_rois, shape)
-        # Concat to feature axis - [batch, num_boxes, feature_size * 2 + 4]
-        relation_features = tf.concat((relation_features, shaped_relation_bb), axis=2)
-
-        # Expand object confidence
-        extended_confidence_entity_shape = tf.concat((N, tf.shape(entity_features)), 0)
-        expand_object_features = tf.add(tf.zeros(extended_confidence_entity_shape), entity_features,
-                                        name="expand_object_features")
-
-        # Expand subject confidence
-        expand_subject_features = tf.transpose(expand_object_features, perm=[1, 0, 2], name="expand_subject_features")
-
-        # Node Neighbours
-        object_ngbrs = [expand_object_features, expand_subject_features, relation_features]
-
-        # apply phi
-        object_ngbrs_phi = self.nn(features=object_ngbrs, layers=[500, 500], out=500, scope_name="nn_phi")
-
-        return []
-
-    def compute_output_shape(self, input_shape):
-        return [None, None]
 
 
 ############################################################
@@ -1292,6 +848,65 @@ class DetectionLayer(KE.Layer):
         return (None, self.config.DETECTION_MAX_INSTANCES, 6)
 
 
+class UnionROISLayer(KE.Layer):
+    """Takes classified proposal boxes and their bounding box deltas and
+    returns the final detection boxes.
+
+    Returns:
+    [batch, num_detections, (y1, x1, y2, x2, class_id, class_score)] where
+    coordinates are normalized.
+    """
+
+    def __init__(self, num_rois=None, batch_size=1, **kwargs):
+        super(UnionROISLayer, self).__init__(**kwargs)
+        self.batch_size = batch_size
+        self.num_rois = num_rois
+
+    def call(self, inputs):
+        boxes = inputs[0]
+        y1, x1, y2, x2 = tf.split(boxes, 4, axis=2)
+        sub_x1, obj_x1 = tf.meshgrid(x1, x1)
+        sub_y1, obj_y1 = tf.meshgrid(y1, y1)
+        sub_x2, obj_x2 = tf.meshgrid(x2, x2)
+        sub_y2, obj_y2 = tf.meshgrid(y2, y2)
+
+        pw_x1 = tf.minimum(sub_x1, obj_x1)
+        pw_y1 = tf.minimum(sub_y1, obj_y1)
+        pw_x2 = tf.maximum(sub_x2, obj_x2)
+        pw_y2 = tf.maximum(sub_y2, obj_y2)
+
+        # returns [batch, num_boxes, num_boxes, (y1, x1, y2, x2)]
+        new_boxes = tf.stack([pw_y1, pw_x1, pw_y2, pw_x2], axis=-1)
+        new_boxes = tf.expand_dims(new_boxes, axis=0)
+
+        return new_boxes
+
+    def compute_output_shape(self, input_shape):
+        return (self.batch_size, self.num_rois, 4)
+
+
+class ExpandLayer(KE.Layer):
+    """Takes classified proposal boxes and their bounding box deltas and
+    returns the final detection boxes.
+
+    Returns:
+    [batch, num_detections, (y1, x1, y2, x2, class_id, class_score)] where
+    coordinates are normalized.
+    """
+
+    def __init__(self, num_rois=None, batch_size=1, **kwargs):
+        super(ExpandLayer, self).__init__(**kwargs)
+        self.batch_size = batch_size
+        self.num_rois = num_rois
+
+    def call(self, inputs):
+        # Reshape output
+        return tf.expand_dims(inputs, axis=0)
+
+    def compute_output_shape(self, input_shape):
+        return (self.batch_size, self.num_rois, 1024)
+
+
 ############################################################
 #  Region Proposal Network (RPN)
 ############################################################
@@ -1366,9 +981,8 @@ def build_rpn_model(anchor_stride, anchors_per_location, depth):
 #  Feature Pyramid Network Heads
 ############################################################
 
-def fpn_classifier_graph(self, rois, feature_maps, image_meta,
-                         pool_size, num_classes, train_bn=True,
-                         fc_layers_size=1024, num_rois=200):
+def fpn_classifier_graph(rois, feature_maps, image_meta, pool_size, num_classes, train_bn=True,
+                         fc_layers_size=1024, num_rois=20, gpi_type="FeatureAttention"):
     """Builds the computation graph of the feature pyramid network classifier
     and regressor heads.
 
@@ -1402,10 +1016,10 @@ def fpn_classifier_graph(self, rois, feature_maps, image_meta,
     x = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn2_single')(x, training=train_bn)
     x = KL.Activation('relu')(x)
     # shared_single_features - [batch, num_rois, 1024]
-    shared_single_features = KL.Lambda(lambda x: K.squeeze(K.squeeze(x, 3), 2), name="pool_squeeze2")(x)
+    shared_single_features = KL.Lambda(lambda x: K.squeeze(K.squeeze(x, 3), 2), name="pool_squeeze_single")(x)
 
     # Get Union Bounding Boxes for pairwise features
-    pairwise_rois = compute_union_boxes(rois)
+    pairwise_rois = UnionROISLayer(num_rois=num_rois, name="union_rois")([rois])
 
     # ROI Pooling for Relations
     pairwise_pooled = PyramidROIAlign([pool_size, pool_size], name="roi_align_pairwise_classifier")(
@@ -1420,7 +1034,7 @@ def fpn_classifier_graph(self, rois, feature_maps, image_meta,
                             name="mrcnn_class_conv2_pairwise")(xx)
     xx = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn2_pairwise')(xx, training=train_bn)
     xx = KL.Activation('relu')(xx)
-    shared_pairwise_features = KL.Lambda(lambda xx: K.squeeze(K.squeeze(xx, 3), 2), name="pool_squeeze2")(xx)
+    shared_pairwise_features = KL.Lambda(lambda xx: K.squeeze(K.squeeze(xx, 3), 2), name="pool_squeeze_pairwise")(xx)
 
     ############################################################
     #  Graph Permeation Invariant Model
@@ -1430,24 +1044,80 @@ def fpn_classifier_graph(self, rois, feature_maps, image_meta,
     # Git Implementation in https://github.com/shikorab/SceneGraph
     ############################################################
 
-    gpi = GPIKerasModel(num_rois, scope_name="deep_gpi_graph")
-    # Init GPI module
-    gpi_module = gpi.build_gpi()
-    # Get entity and relation features
-    entity_features, relation_features = gpi_module(
-        [rois, pairwise_rois, shared_single_features, shared_pairwise_features])
+    # entity_features - [batch, num_boxes, features_size + 4]
+    # relation_features - [batch, num_boxes, num_boxes, feature_size * 2 + 4]
+    entity_features, relation_features = GPIKerasLayer(num_rois, name='gpi_keras_layer')(
+        [shared_single_features, shared_pairwise_features, rois, pairwise_rois])
 
-    # Phi
-    object_ngbrs_tensor = gpi.expand_object_subject(entity_features, relation_features)
-    object_phi_tensor = gpi.phi(entity_features, object_ngbrs_tensor)
-    # Alpha
-    graph_encoding = gpi.alpha(object_phi_tensor)
-    # Rho - shared_improved_features - [batch, num_rois, 1024]
-    shared_improved_features = gpi.rho(entity_features, graph_encoding)
+    # [batch, num_boxes, num_boxes, (feature_size + 4) * 2 + feature_size * 2 + 4]
+    object_ngbrs_tensor = GPIKerasExpandLayer(num_rois, name='gpi_keras_expand_layer')(
+        [entity_features, relation_features])
+
+    # Phi - [batch, num_boxes, num_boxes, 500]
+    phi = KL.Dense(500, activation='relu', name='nn_phi_1')(object_ngbrs_tensor)
+    phi = KL.Dense(500, activation='relu', name='nn_phi_2')(phi)
+    object_ngbrs_phi = KL.Dense(500, activation=None, name='nn_phi_out')(phi)
+
+    # Attention mechanism over phi
+    if gpi_type == "FeatureAttention" or gpi_type == "Linguistic":
+        object_ngbrs_scores = KL.Dense(500, activation='relu', name='nn_phi_atten_1')(object_ngbrs_tensor)
+        object_ngbrs_scores = KL.Dense(500, activation=None, name='nn_phi_atten_out')(object_ngbrs_scores)
+        object_ngbrs_weights = KL.Softmax(axis=2)(object_ngbrs_scores)
+        object_ngbrs_phi_all = KL.Lambda(lambda x: K.sum(x, axis=2))(
+            KL.Multiply()([object_ngbrs_phi, object_ngbrs_weights]))
+
+    elif gpi_type == "NeighbourAttention":
+        object_ngbrs_scores = KL.Dense(500, activation='relu', name='nn_phi_atten_1')(object_ngbrs_tensor)
+        object_ngbrs_scores = KL.Dense(1, activation=None, name='nn_phi_atten_out')(object_ngbrs_scores)
+        object_ngbrs_weights = KL.Softmax(axis=2)(object_ngbrs_scores)
+        object_ngbrs_phi_all = KL.Lambda(lambda x: K.sum(x, axis=2))(
+            KL.Multiply()([object_ngbrs_phi, object_ngbrs_weights]))
+    else:
+        object_ngbrs_phi_all = KL.Lambda(lambda x: K.sum(x, axis=2))(object_ngbrs_phi) / 40.0
+
+    # Nodes
+    object_ngbrs2_tensor = KL.Concatenate(axis=-1)([entity_features, object_ngbrs_phi_all])
+
+    # Alpha - [batch, num_boxes, num_boxes, 500]
+    alpha = KL.Dense(500, activation='relu', name='nn_alpha_1')(object_ngbrs2_tensor)
+    alpha = KL.Dense(500, activation='relu', name='nn_alpha_2')(alpha)
+    object_ngbrs2_alpha = KL.Dense(500, activation=None, name='nn_alpha_out')(alpha)
+
+    # Attention mechanism over alpha
+    if gpi_type == "FeatureAttention" or gpi_type == "Linguistic":
+        object_ngbrs2_scores = KL.Dense(500, activation='relu', name='nn_alpha_atten_1')(object_ngbrs2_tensor)
+        object_ngbrs2_scores = KL.Dense(500, activation=None, name='nn_alpha_atten_out')(object_ngbrs2_scores)
+        object_ngbrs2_weights = KL.Softmax(axis=1)(object_ngbrs2_scores)
+        object_ngbrs_alpha_all = KL.Lambda(lambda x: K.sum(x, axis=1))(
+            KL.Multiply()([object_ngbrs2_alpha, object_ngbrs2_weights]))
+
+    elif gpi_type == "NeighbourAttention":
+        object_ngbrs2_scores = KL.Dense(500, activation='relu', name='nn_alpha_atten_1')(object_ngbrs2_tensor)
+        object_ngbrs2_scores = KL.Dense(500, activation=None, name='nn_alpha_atten_out')(object_ngbrs2_scores)
+        object_ngbrs2_weights = KL.Softmax(axis=1)(object_ngbrs2_scores)
+        object_ngbrs_alpha_all = KL.Lambda(lambda x: K.sum(x, axis=1))(
+            KL.Multiply()([object_ngbrs2_alpha, object_ngbrs2_weights]))
+    else:
+        object_ngbrs_alpha_all = KL.Lambda(lambda x: K.sum(x, axis=1))(object_ngbrs2_alpha) / 40.0
+
+    # Graph encoding - [num_boxes, 500]
+    expand_graph = GPIKerasExpandGraphLayer(num_rois, feature_size=500, name='gpi_keras_expand_graph_layer')(
+        [object_ngbrs_alpha_all])
+
+    # rho entity (entity prediction)
+    # The input is entity features, entity neighbour features and the representation of the graph
+    object_all_features = KL.Concatenate(axis=-1)([entity_features, expand_graph])
+    rho = KL.Dense(500, activation='relu', name='nn_rho_1')(object_all_features)
+    rho = KL.Dense(500, activation='relu', name='nn_rho_2')(rho)
+    shared_improved_features = KL.Dense(1024, activation=None, name='nn_rho_ent_out')(rho)
 
     # Classifier head
     mrcnn_class_logits = KL.TimeDistributed(KL.Dense(num_classes), name='mrcnn_class_logits')(shared_improved_features)
+    class_sh = K.int_shape(mrcnn_class_logits)
+    mrcnn_class_logits = KL.Reshape((class_sh[1], class_sh[2]), name="mrcnn_class_logits_reshaped")(mrcnn_class_logits)
     mrcnn_probs = KL.TimeDistributed(KL.Activation("softmax"), name="mrcnn_class")(mrcnn_class_logits)
+    probes_sh = K.int_shape(mrcnn_class_logits)
+    mrcnn_probs = KL.Reshape((probes_sh[1], probes_sh[2]), name="mrcnn_probes_reshaped")(mrcnn_probs)
 
     # BBox head
     # [batch, boxes, num_classes * (dy, dx, log(dh), log(dw))]
@@ -2483,16 +2153,16 @@ class MaskRCNN():
             # Network Heads
             # TODO: verify that this handles zero padded ROIs
             # @todo: delete this
-            self._input_image = input_image
-            self._input_image_meta = input_image_meta
-            self._input_rpn_match = input_rpn_match
-            self._input_rpn_bbox = input_rpn_bbox
-            self._input_gt_class_ids = input_gt_class_ids
-            self._input_gt_boxes = input_gt_boxes
-            self._input_gt_masks = input_gt_masks
+            # self._input_image = input_image
+            # self._input_image_meta = input_image_meta
+            # self._input_rpn_match = input_rpn_match
+            # self._input_rpn_bbox = input_rpn_bbox
+            # self._input_gt_class_ids = input_gt_class_ids
+            # self._input_gt_boxes = input_gt_boxes
+            # self._input_gt_masks = input_gt_masks
 
             mrcnn_class_logits, mrcnn_class, mrcnn_bbox = \
-                fpn_classifier_graph(self, rois, mrcnn_feature_maps, input_image_meta,
+                fpn_classifier_graph(rois, mrcnn_feature_maps, input_image_meta,
                                      config.POOL_SIZE, config.NUM_CLASSES,
                                      train_bn=config.TRAIN_BN,
                                      fc_layers_size=config.FPN_CLASSIF_FC_LAYERS_SIZE,
@@ -2529,16 +2199,19 @@ class MaskRCNN():
                        rpn_rois, output_rois,
                        rpn_class_loss, rpn_bbox_loss, class_loss, bbox_loss, mask_loss]
             model = KM.Model(inputs, outputs, name='mask_rcnn')
+            print("test")
         else:
             # Network Heads
             # Proposal classifier and BBox regressor heads
             mrcnn_class_logits, mrcnn_class, mrcnn_bbox = \
-                fpn_classifier_graph(self, rpn_rois, mrcnn_feature_maps, input_image_meta,
+                fpn_classifier_graph(rpn_rois, mrcnn_feature_maps, input_image_meta,
                                      config.POOL_SIZE, config.NUM_CLASSES,
                                      train_bn=config.TRAIN_BN,
                                      fc_layers_size=config.FPN_CLASSIF_FC_LAYERS_SIZE,
                                      num_rois=config.POST_NMS_ROIS_INFERENCE)
-
+            model = KM.Model([input_image, input_image_meta, input_anchors],
+                             [mrcnn_class, mrcnn_bbox, rpn_rois, rpn_class, rpn_bbox],
+                             name='mask_rcnn')
             # Detections output is [batch, num_detections, (y1, x1, y2, x2, class_id, score)] in normalized coordinates
             detections = DetectionLayer(config, name="mrcnn_detection")(
                 [rpn_rois, mrcnn_class, mrcnn_bbox, input_image_meta])
