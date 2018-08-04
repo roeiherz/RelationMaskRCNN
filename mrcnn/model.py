@@ -800,8 +800,14 @@ class DetectionLayer(KE.Layer):
         mrcnn_bbox = inputs[2]
         image_meta = inputs[3]
 
-        # Get windows of images in normalized coordinates. Windows are the area
-        # in the image that excludes the padding.
+        # todo: delete
+        # import cPickle
+        # rois = cPickle.load(open("rpn_rois.p"))
+        # image_meta = cPickle.load(open("input_image_meta.p"))
+        # mrcnn_class = cPickle.load(open("mrcnn_class.p"))
+        # mrcnn_bbox = cPickle.load(open("mrcnn_bbox.p"))
+
+        # Get windows of images in normalized coordinates. Windows are the area in the image that excludes the padding.
         # Use the shape of the first image in the batch to normalize the window
         # because we know that all images get resized to the same size.
         m = parse_image_meta_graph(image_meta)
@@ -997,6 +1003,24 @@ def fpn_classifier_graph(rois, feature_maps, image_meta, pool_size, num_classes,
 
     # Get Union Bounding Boxes for pairwise features - [batch, num_boxes, num_boxes, (y1, x1, y2, x2)]
     pairwise_rois = UnionROISLayer(num_rois=num_rois, name="union_rois")([rois])
+
+    # todo: delete
+    # # Translate normalized coordinates in the resized image to pixel
+    # # coordinates in the original image before resizing
+    # window = np.array([0, 0, 1024, 1024])
+    # image_shape = (1024, 1024, 3)
+    # original_image_shape = (1024, 1024, 3)
+    # window = utils.norm_boxes(window, image_shape[:2])
+    # wy1, wx1, wy2, wx2 = window
+    # shift = np.array([wy1, wx1, wy1, wx1])
+    # wh = wy2 - wy1  # window height
+    # ww = wx2 - wx1  # window width
+    # scale = np.array([wh, ww, wh, ww])
+    # # Convert boxes to normalized coordinates on the window
+    # boxes = np.divide(rois - shift, scale)
+    # # Convert boxes to pixel coordinates on the original image
+    # boxes = utils.denorm_boxes(boxes, original_image_shape[:2])
+
     # Reshape - [batch, num_boxes * num_boxes, (y1, x1, y2, x2)]
     pairwise_rois_reshaped = KL.Reshape((num_rois * num_rois, 4), name="pairwise_rois_reshaped")(pairwise_rois)
 
@@ -2181,6 +2205,7 @@ class MaskRCNN():
         else:
             # Network Heads
             # Proposal classifier and BBox regressor heads
+
             mrcnn_class_logits, mrcnn_class, mrcnn_bbox = \
                 fpn_classifier_graph(rpn_rois, mrcnn_feature_maps, input_image_meta,
                                      config.POOL_SIZE, config.NUM_CLASSES,
@@ -2652,9 +2677,16 @@ class MaskRCNN():
             log("molded_images", molded_images)
             log("image_metas", image_metas)
             log("anchors", anchors)
+        # # Run object detection
+        # detections, _, _, mrcnn_mask, _, _, _ = \
+        #     self.keras_model.predict([molded_images, image_metas, anchors], verbose=0)
+
+        # todo: delete
         # Run object detection
-        detections, _, _, mrcnn_mask, _, _, _ = \
+        mrcnn_feature_maps = [0, 0, 0, 0]
+        detections, mrcnn_class, mrcnn_bbox, mrcnn_mask, rpn_rois, rpn_class, rpn_bbox = \
             self.keras_model.predict([molded_images, image_metas, anchors], verbose=0)
+
         # Process detections
         results = []
         for i, image in enumerate(images):
