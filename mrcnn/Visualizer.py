@@ -92,3 +92,40 @@ class VisualizerDrawer(object):
             cv2.putText(image, label, text_org, FONT_FACE, font_scale, text_color, font_thickness)
             if label2 is not None:
                 cv2.putText(image, label2, text_org2, FONT_FACE, font_scale, text_color, font_thickness)
+
+if __name__ == '__main__':
+    import os
+    import sys
+    import cPickle
+    import numpy as np
+    import cv2
+    path = '/specific/netapp5_2/gamir/DER-Roei/RelationMaskRCNN/samples/coco/'
+    rois = cPickle.load(open(path + "rpn_rois.p"))
+    boxes = cPickle.load(open(path + "boxes.p"))
+    pairwise_rois = cPickle.load(open(path + "pairwise_rois.p"))
+    pairwise_boxes = cPickle.load(open(path + "pairwise_boxes.p"))
+    mrcnn_class = cPickle.load(open(path + "mrcnn_class.p"))
+    # image_meta = cPickle.load(open(path + "input_image_meta.p"))
+    # feature_maps = cPickle.load(open(path + "mrcnn_feature_maps.p"))
+
+    vis = VisualizerDrawer()
+    # # Draw Boxes
+    # img = cv2.imread(path + 'image.jpg')
+    # for i, box in enumerate(boxes[0]):
+    #     if np.max(mrcnn_class[0][i]) > 0.0:
+    #         conf = "conf_{:.2f}_label_{}".format(np.max(mrcnn_class[0][i]), np.argmax(mrcnn_class[0][i]))
+    #         conf = None
+    #         vis.draw_labeled_box(img, box, label=conf)
+    #
+    # cv2.imwrite(path + 'image-boxes.jpg', img)
+
+    # Draw Pairwise Boxes
+    img = cv2.imread(path + 'image.jpg')
+    for i in range(len(pairwise_boxes[0])):
+        if i > 0:
+            break
+        for j in range(len(pairwise_boxes[0])):
+            box = pairwise_boxes[0][i][j]
+            vis.draw_labeled_box(img, box)
+    cv2.imwrite(path + 'image-pairwise-boxes.jpg', img)
+    print('end')

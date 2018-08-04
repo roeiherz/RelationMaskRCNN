@@ -33,10 +33,10 @@ class BOX:
     def __init__(self):
         pass
 
-    X1 = 0
-    Y1 = 1
-    X2 = 2
-    Y2 = 3
+    X1 = 1
+    Y1 = 0
+    X2 = 3
+    Y2 = 2
 
 
 def extract_bboxes(mask):
