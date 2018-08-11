@@ -26,7 +26,7 @@ import keras.models as KM
 from mrcnn import utils
 # Requires TensorFlow 1.3+ and Keras 2.0.8+.
 from distutils.version import LooseVersion
-from mrcnn.GPIKerasLayer import GPIKerasLayer, GPIKerasExpandLayer, GPIKerasExpandGraphLayer
+from mrcnn.GPIKerasLayer import GPIKerasLayer, GPIKerasExpandLayer, GPIKerasExpandGraphLayer, GPIKerasForgetLayer
 
 assert LooseVersion(tf.__version__) >= LooseVersion("1.3")
 assert LooseVersion(keras.__version__) >= LooseVersion('2.0.8')
@@ -802,10 +802,10 @@ class DetectionLayer(KE.Layer):
 
         # todo: delete
         # import cPickle
-        # rois = cPickle.load(open("rpn_rois.p"))
+        # rois = cPickle.load(open("rois_forget.p"))[0]
         # image_meta = cPickle.load(open("input_image_meta.p"))
-        # mrcnn_class = cPickle.load(open("mrcnn_class.p"))
-        # mrcnn_bbox = cPickle.load(open("mrcnn_bbox.p"))
+        # mrcnn_class = cPickle.load(open("mrcnn_class_forget.p"))[0]
+        # mrcnn_bbox = cPickle.load(open("mrcnn_bbox_forget.p"))[0]
 
         # Get windows of images in normalized coordinates. Windows are the area in the image that excludes the padding.
         # Use the shape of the first image in the batch to normalize the window
@@ -965,7 +965,7 @@ def build_rpn_model(anchor_stride, anchors_per_location, depth):
 ############################################################
 
 def fpn_classifier_graph(rois, feature_maps, image_meta, pool_size, num_classes, train_bn=True,
-                         fc_layers_size=1024, num_rois=20, gpi_type="FeatureAttention"):
+                         features_size=516, num_rois=20, gpi_type="FeatureAttention"):
     """Builds the computation graph of the feature pyramid network classifier
     and regressor heads.
 
@@ -991,11 +991,11 @@ def fpn_classifier_graph(rois, feature_maps, image_meta, pool_size, num_classes,
                                     name="roi_align_object_classifier")(
         [rois, image_meta] + feature_maps)
     # Two 1024 FC layers (implemented with Conv2D for consistency)
-    x = KL.TimeDistributed(KL.Conv2D(fc_layers_size, (pool_size, pool_size), padding="valid"),
+    x = KL.TimeDistributed(KL.Conv2D(features_size, (pool_size, pool_size), padding="valid"),
                            name="mrcnn_class_conv1_single")(single_pooled)
     x = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn1_single')(x, training=train_bn)
     x = KL.Activation('relu')(x)
-    x = KL.TimeDistributed(KL.Conv2D(fc_layers_size, (1, 1)), name="mrcnn_class_conv2_single")(x)
+    x = KL.TimeDistributed(KL.Conv2D(features_size, (1, 1)), name="mrcnn_class_conv2_single")(x)
     x = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn2_single')(x, training=train_bn)
     x = KL.Activation('relu')(x)
     # shared_single_features - [batch, num_rois, 1024]
@@ -1029,11 +1029,11 @@ def fpn_classifier_graph(rois, feature_maps, image_meta, pool_size, num_classes,
         [pairwise_rois_reshaped, image_meta] + feature_maps)
 
     # Two 1024 FC layers (implemented with Conv2D for consistency)
-    xx = KL.TimeDistributed(KL.Conv2D(fc_layers_size, (pool_size, pool_size), padding="valid"),
+    xx = KL.TimeDistributed(KL.Conv2D(features_size, (pool_size, pool_size), padding="valid"),
                             name="mrcnn_class_conv1_pairwise")(pairwise_pooled)
     xx = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn1_pairwise')(xx, training=train_bn)
     xx = KL.Activation('relu')(xx)
-    xx = KL.TimeDistributed(KL.Conv2D(fc_layers_size, (1, 1)),
+    xx = KL.TimeDistributed(KL.Conv2D(features_size, (1, 1)),
                             name="mrcnn_class_conv2_pairwise")(xx)
     xx = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn2_pairwise')(xx, training=train_bn)
     xx = KL.Activation('relu')(xx)
@@ -1049,70 +1049,74 @@ def fpn_classifier_graph(rois, feature_maps, image_meta, pool_size, num_classes,
 
     # entity_features - [batch, num_boxes, features_size + 4]
     # relation_features - [batch, num_boxes, num_boxes, feature_size * 2 + 4]
-    entity_features, relation_features = GPIKerasLayer(num_rois, name='gpi_keras_layer')(
+    node_features, relation_features = GPIKerasLayer(num_rois, name='gpi_keras_layer', feature_size=features_size)(
         [shared_single_features, shared_pairwise_features, rois, pairwise_rois])
 
     # [batch, num_boxes, num_boxes, (feature_size + 4) * 2 + feature_size * 2 + 4]
-    object_ngbrs_tensor = GPIKerasExpandLayer(num_rois, name='gpi_keras_expand_layer')(
-        [entity_features, relation_features])
+    object_ngbrs_tensor = GPIKerasExpandLayer(num_rois, name='gpi_keras_expand_layer', feature_size=features_size)(
+        [node_features, relation_features])
 
     # Phi - [batch, num_boxes, num_boxes, 500]
-    phi = KL.Dense(500, activation='relu', name='nn_phi_1')(object_ngbrs_tensor)
-    phi = KL.Dense(500, activation='relu', name='nn_phi_2')(phi)
-    object_ngbrs_phi = KL.Dense(500, activation=None, name='nn_phi_out')(phi)
+    phi = KL.Dense(features_size, activation='relu', name='nn_phi_1')(object_ngbrs_tensor)
+    phi = KL.Dense(features_size, activation='relu', name='nn_phi_2')(phi)
+    object_ngbrs_phi = KL.Dense(features_size, activation=None, name='nn_phi_out')(phi)
 
     # Attention mechanism over phi
     if gpi_type == "FeatureAttention" or gpi_type == "Linguistic":
-        object_ngbrs_scores = KL.Dense(500, activation='relu', name='nn_phi_atten_1')(object_ngbrs_tensor)
-        object_ngbrs_scores = KL.Dense(500, activation=None, name='nn_phi_atten_out')(object_ngbrs_scores)
+        object_ngbrs_scores = KL.Dense(features_size, activation='relu', name='nn_phi_atten_1')(object_ngbrs_tensor)
+        object_ngbrs_scores = KL.Dense(features_size, activation=None, name='nn_phi_atten_out')(object_ngbrs_scores)
         object_ngbrs_weights = KL.Softmax(axis=2)(object_ngbrs_scores)
         object_ngbrs_phi_all = KL.Lambda(lambda x: K.sum(x, axis=2))(
             KL.Multiply()([object_ngbrs_phi, object_ngbrs_weights]))
 
     elif gpi_type == "NeighbourAttention":
-        object_ngbrs_scores = KL.Dense(500, activation='relu', name='nn_phi_atten_1')(object_ngbrs_tensor)
+        object_ngbrs_scores = KL.Dense(features_size, activation='relu', name='nn_phi_atten_1')(object_ngbrs_tensor)
         object_ngbrs_scores = KL.Dense(1, activation=None, name='nn_phi_atten_out')(object_ngbrs_scores)
         object_ngbrs_weights = KL.Softmax(axis=2)(object_ngbrs_scores)
         object_ngbrs_phi_all = KL.Lambda(lambda x: K.sum(x, axis=2))(
             KL.Multiply()([object_ngbrs_phi, object_ngbrs_weights]))
     else:
-        object_ngbrs_phi_all = KL.Lambda(lambda x: K.sum(x, axis=2))(object_ngbrs_phi) / 40.0
+        object_ngbrs_phi_all = KL.Lambda(lambda x: K.sum(x, axis=2))(object_ngbrs_phi) / 64.0
 
     # Nodes
-    object_ngbrs2_tensor = KL.Concatenate(axis=-1)([entity_features, object_ngbrs_phi_all])
+    object_ngbrs2_tensor = KL.Concatenate(axis=-1)([node_features, object_ngbrs_phi_all])
 
     # Alpha - [batch, num_boxes, num_boxes, 500]
-    alpha = KL.Dense(500, activation='relu', name='nn_alpha_1')(object_ngbrs2_tensor)
-    alpha = KL.Dense(500, activation='relu', name='nn_alpha_2')(alpha)
-    object_ngbrs2_alpha = KL.Dense(500, activation=None, name='nn_alpha_out')(alpha)
+    alpha = KL.Dense(features_size, activation='relu', name='nn_alpha_1')(object_ngbrs2_tensor)
+    alpha = KL.Dense(features_size, activation='relu', name='nn_alpha_2')(alpha)
+    object_ngbrs2_alpha = KL.Dense(features_size, activation=None, name='nn_alpha_out')(alpha)
 
     # Attention mechanism over alpha
     if gpi_type == "FeatureAttention" or gpi_type == "Linguistic":
-        object_ngbrs2_scores = KL.Dense(500, activation='relu', name='nn_alpha_atten_1')(object_ngbrs2_tensor)
-        object_ngbrs2_scores = KL.Dense(500, activation=None, name='nn_alpha_atten_out')(object_ngbrs2_scores)
+        object_ngbrs2_scores = KL.Dense(features_size, activation='relu', name='nn_alpha_atten_1')(object_ngbrs2_tensor)
+        object_ngbrs2_scores = KL.Dense(features_size, activation=None, name='nn_alpha_atten_out')(object_ngbrs2_scores)
         object_ngbrs2_weights = KL.Softmax(axis=1)(object_ngbrs2_scores)
         object_ngbrs_alpha_all = KL.Lambda(lambda x: K.sum(x, axis=1))(
             KL.Multiply()([object_ngbrs2_alpha, object_ngbrs2_weights]))
 
     elif gpi_type == "NeighbourAttention":
-        object_ngbrs2_scores = KL.Dense(500, activation='relu', name='nn_alpha_atten_1')(object_ngbrs2_tensor)
-        object_ngbrs2_scores = KL.Dense(500, activation=None, name='nn_alpha_atten_out')(object_ngbrs2_scores)
+        object_ngbrs2_scores = KL.Dense(features_size, activation='relu', name='nn_alpha_atten_1')(object_ngbrs2_tensor)
+        object_ngbrs2_scores = KL.Dense(features_size, activation=None, name='nn_alpha_atten_out')(object_ngbrs2_scores)
         object_ngbrs2_weights = KL.Softmax(axis=1)(object_ngbrs2_scores)
         object_ngbrs_alpha_all = KL.Lambda(lambda x: K.sum(x, axis=1))(
             KL.Multiply()([object_ngbrs2_alpha, object_ngbrs2_weights]))
     else:
-        object_ngbrs_alpha_all = KL.Lambda(lambda x: K.sum(x, axis=1))(object_ngbrs2_alpha) / 40.0
+        object_ngbrs_alpha_all = KL.Lambda(lambda x: K.sum(x, axis=1))(object_ngbrs2_alpha) / 64.0
 
     # Graph encoding - [num_boxes, 500]
-    expand_graph = GPIKerasExpandGraphLayer(num_rois, feature_size=500, name='gpi_keras_expand_graph_layer')(
+    expand_graph = GPIKerasExpandGraphLayer(num_rois, feature_size=features_size, name='gpi_keras_expand_graph_layer')(
         [object_ngbrs_alpha_all])
 
     # rho entity (entity prediction)
     # The input is entity features, entity neighbour features and the representation of the graph
-    object_all_features = KL.Concatenate(axis=-1)([entity_features, expand_graph])
-    rho = KL.Dense(500, activation='relu', name='nn_rho_1')(object_all_features)
-    rho = KL.Dense(500, activation='relu', name='nn_rho_2')(rho)
-    shared_improved_features = KL.Dense(1024, activation=None, name='nn_rho_ent_out')(rho)
+    object_all_features = KL.Concatenate(axis=-1)([node_features, expand_graph])
+    rho_delta = KL.Dense(500, activation='relu', name='nn_rho_1')(object_all_features)
+    rho_delta = KL.Dense(features_size, activation='relu', name='nn_rho_2')(rho_delta)
+    rho_forget = KL.Dense(features_size, activation='sigmoid', name='nn_rho_forget_gate')(object_all_features)
+    shared_improved_features = GPIKerasForgetLayer(num_rois, feature_size=features_size, name="forget_layer")\
+        ([rho_delta, rho_forget, shared_single_features])
+    # shared_improved_features = rho_delta + rho_forget * shared_single_features
+    # shared_improved_features = KL.Dense(1024, activation=None, name='nn_rho_ent_out')(rho_delta)
 
     # Classifier head
     mrcnn_class_logits = KL.TimeDistributed(KL.Dense(num_classes), name='mrcnn_class_logits')(shared_improved_features)
@@ -1224,6 +1228,71 @@ def rpn_class_loss_graph(rpn_match, rpn_class_logits):
     return loss
 
 
+def rpn_class_metric_graph(rpn_match, rpn_class_logits):
+    """RPN anchor classifier metric.
+
+    rpn_match: [batch, anchors, 1]. Anchor match type. 1=positive,
+               -1=negative, 0=neutral anchor.
+    rpn_class_logits: [batch, anchors, 2]. RPN classifier logits for FG/BG.
+    """
+    # Squeeze last dim to simplify
+    rpn_match = tf.squeeze(rpn_match, -1)
+    # Get anchor classes. Convert the -1/+1 match to 0/1 values.
+    anchor_class = K.cast(K.equal(rpn_match, 1), tf.int32)
+    # Positive and Negative anchors contribute to the loss,
+    # but neutral anchors (match value = 0) don't.
+    indices = tf.where(K.not_equal(rpn_match, 0))
+    # Pick rows that contribute to the loss and filter out the rest.
+    rpn_class_logits = tf.gather_nd(rpn_class_logits, indices)
+    anchor_class = tf.gather_nd(anchor_class, indices)
+
+    acc = K.mean(K.equal(tf.cast(anchor_class,'int64'), K.argmax(rpn_class_logits, axis=-1)))
+    acc = K.switch(tf.size(acc) > 0, K.mean(acc), tf.constant(0.0))
+    return acc
+
+
+def rpn_bbox_metric_graph(config, target_bbox, rpn_match, rpn_bbox):
+    """Return the RPN bounding box loss graph.
+
+    config: the model config object.
+    target_bbox: [batch, max positive anchors, (dy, dx, log(dh), log(dw))].
+        Uses 0 padding to fill in unsed bbox deltas.
+    rpn_match: [batch, anchors, 1]. Anchor match type. 1=positive,
+               -1=negative, 0=neutral anchor.
+    rpn_bbox: [batch, anchors, (dy, dx, log(dh), log(dw))]
+    """
+    # Positive anchors contribute to the loss, but negative and
+    # neutral anchors (match value of 0 or -1) don't.
+    rpn_match = K.squeeze(rpn_match, -1)
+    indices = tf.where(K.equal(rpn_match, 1))
+
+    # Pick bbox deltas that contribute to the loss
+    rpn_bbox = tf.gather_nd(rpn_bbox, indices)
+
+    # Trim target bounding box deltas to the same length as rpn_bbox.
+    batch_counts = K.sum(K.cast(K.equal(rpn_match, 1), tf.int32), axis=1)
+    target_bbox = batch_pack_graph(target_bbox, batch_counts,
+                                   config.IMAGES_PER_GPU)
+
+    diff = K.mean(target_bbox - rpn_bbox)
+    # # Calculate intersection areas
+    # y1 = tf.maximum(target_bbox[:,0], rpn_bbox[:,0])
+    # y2 = tf.minimum(target_bbox[:,2], rpn_bbox[:,2])
+    # x1 = tf.maximum(target_bbox[:,1], rpn_bbox[:,1])
+    # x2 = tf.minimum(target_bbox[:,3], rpn_bbox[:,3])
+    # intersection = tf.maximum(x2 - x1, 0) * tf.maximum(y2 - y1, 0)
+    #
+    # # compute the area (x2 - x1) * (y2 - y1)
+    # boxes_area = tf.abs((rpn_bbox[:,3] - rpn_bbox[:,1]) * (rpn_bbox[:,2] - rpn_bbox[:,0]))
+    # target_area = tf.abs((target_bbox[:,3] - target_bbox[:,1]) * (target_bbox[:,2] - target_bbox[:,0]))
+    #
+    # union = boxes_area + target_area - intersection
+    # iou = intersection / union
+    #
+    # mean_iou = tf.reduce_mean(iou)
+    return diff
+
+
 def rpn_bbox_loss_graph(config, target_bbox, rpn_match, rpn_bbox):
     """Return the RPN bounding box loss graph.
 
@@ -1256,9 +1325,34 @@ def rpn_bbox_loss_graph(config, target_bbox, rpn_match, rpn_bbox):
     loss = K.switch(tf.size(loss) > 0, K.mean(loss), tf.constant(0.0))
     return loss
 
+def mrcnn_class_metric_graph(target_class_ids, pred_class_logits, active_class_ids):
+    """Loss for the classifier head of Mask RCNN.
 
-def mrcnn_class_loss_graph(target_class_ids, pred_class_logits,
-                           active_class_ids):
+    target_class_ids: [batch, num_rois]. Integer class IDs. Uses zero
+        padding to fill in the array.
+    pred_class_logits: [batch, num_rois, num_classes]
+    active_class_ids: [batch, num_classes]. 
+        Has a value of 1 for classes that are in the dataset of the image, 
+        and 0 for classes that are not in the dataset.
+    """
+    # During model building, Keras calls this function with
+    # target_class_ids of type float32. Unclear why. Cast it
+    # to int to get around it.
+    target_class_ids = tf.cast(target_class_ids, 'int64')
+
+    # Find predictions of classes that are not in the dataset.
+    pred_class_ids = tf.argmax(pred_class_logits, axis=2)
+    # TODO: Update this line to work with batch > 1. Right now it assumes all
+    # images in a batch have the same active_class_ids
+    # pred_active = tf.gather(active_class_ids[0], pred_class_ids)
+    # target_class_ids_active = tf.gather(active_class_ids[0], target_class_ids)
+
+    acc = K.mean(K.equal(target_class_ids, pred_class_ids))
+    acc = K.switch(tf.size(acc) > 0, K.mean(acc), tf.constant(0.0))
+    return acc
+
+
+def mrcnn_class_loss_graph(target_class_ids, pred_class_logits, active_class_ids):
     """Loss for the classifier head of Mask RCNN.
 
     target_class_ids: [batch, num_rois]. Integer class IDs. Uses zero
@@ -1288,6 +1382,33 @@ def mrcnn_class_loss_graph(target_class_ids, pred_class_logits,
     # Computer loss mean. Use only predictions that contribute to the loss to get a correct mean.
     loss = tf.reduce_sum(loss) / tf.reduce_sum(pred_active)
     return loss
+
+
+def mrcnn_bbox_metric_graph(target_bbox, target_class_ids, pred_bbox):
+    """Loss for Mask R-CNN bounding box refinement.
+
+    target_bbox: [batch, num_rois, (dy, dx, log(dh), log(dw))]
+    target_class_ids: [batch, num_rois]. Integer class IDs.
+    pred_bbox: [batch, num_rois, num_classes, (dy, dx, log(dh), log(dw))]
+    """
+    # Reshape to merge batch and roi dimensions for simplicity.
+    target_class_ids = K.reshape(target_class_ids, (-1,))
+    target_bbox = K.reshape(target_bbox, (-1, 4))
+    pred_bbox = K.reshape(pred_bbox, (-1, K.int_shape(pred_bbox)[2], 4))
+
+    # Only positive ROIs contribute to the loss. And only
+    # the right class_id of each ROI. Get their indicies.
+    positive_roi_ix = tf.where(target_class_ids > 0)[:, 0]
+    positive_roi_class_ids = tf.cast(
+        tf.gather(target_class_ids, positive_roi_ix), tf.int64)
+    indices = tf.stack([positive_roi_ix, positive_roi_class_ids], axis=1)
+
+    # Gather the deltas (predicted and true) that contribute to loss
+    target_bbox = tf.gather(target_bbox, positive_roi_ix)
+    pred_bbox = tf.gather_nd(pred_bbox, indices)
+
+    diff = K.mean(target_bbox - pred_bbox)
+    return diff
 
 
 def mrcnn_bbox_loss_graph(target_bbox, target_class_ids, pred_bbox):
@@ -2168,7 +2289,7 @@ class MaskRCNN():
                 fpn_classifier_graph(rois, mrcnn_feature_maps, input_image_meta,
                                      config.POOL_SIZE, config.NUM_CLASSES,
                                      train_bn=config.TRAIN_BN,
-                                     fc_layers_size=config.FPN_CLASSIF_FC_LAYERS_SIZE,
+                                     features_size=config.FPN_CLASSIF_FC_LAYERS_SIZE,
                                      num_rois=config.TRAIN_ROIS_PER_IMAGE)
 
             mrcnn_mask = build_fpn_mask_graph(rois, mrcnn_feature_maps,
@@ -2192,6 +2313,16 @@ class MaskRCNN():
             mask_loss = KL.Lambda(lambda x: mrcnn_mask_loss_graph(*x), name="mrcnn_mask_loss")(
                 [target_mask, target_class_ids, mrcnn_mask])
 
+            # Metrics
+            rpn_class_acc = KL.Lambda(lambda x: rpn_class_metric_graph(*x), name="rpn_class_acc")(
+                [input_rpn_match, rpn_class_logits])
+            # rpn_bbox_diff = KL.Lambda(lambda x: rpn_bbox_metric_graph(config, *x), name="rpn_bbox_metric")(
+            #     [input_rpn_bbox, input_rpn_match, rpn_bbox])
+            class_acc = KL.Lambda(lambda x: mrcnn_class_metric_graph(*x), name="mrcnn_class_acc")(
+                [target_class_ids, mrcnn_class_logits, active_class_ids])
+            # bbox_diff = KL.Lambda(lambda x: mrcnn_bbox_metric_graph(*x), name="mrcnn_bbox_metric")(
+            #     [target_bbox, target_class_ids, mrcnn_bbox])
+
             # Model
             inputs = [input_image, input_image_meta,
                       input_rpn_match, input_rpn_bbox, input_gt_class_ids, input_gt_boxes, input_gt_masks]
@@ -2200,8 +2331,29 @@ class MaskRCNN():
             outputs = [rpn_class_logits, rpn_class, rpn_bbox,
                        mrcnn_class_logits, mrcnn_class, mrcnn_bbox, mrcnn_mask,
                        rpn_rois, output_rois,
-                       rpn_class_loss, rpn_bbox_loss, class_loss, bbox_loss, mask_loss]
+                       rpn_class_loss, rpn_bbox_loss, class_loss, bbox_loss, mask_loss,
+                       rpn_class_acc, class_acc]
+
+            # fun = K.function(inputs, [bbox_loss])
+            # # fun = K.function(inputs, [target_bbox, rpn_bbox])
+            #
+            # import cPickle
+            # _inputs = cPickle.load(open("/specific/netapp5_2/gamir/DER-Roei/RelationMaskRCNN/inputs.p"))
+            # _input_image = _inputs[0]
+            # _input_image_meta = _inputs[1]
+            # _input_rpn_match = _inputs[2]
+            # _input_rpn_bbox = _inputs[3]
+            # _input_gt_class_ids = _inputs[4]
+            # _input_gt_boxes = _inputs[5]
+            # _input_gt_masks = _inputs[6]
+            #
+            # res = fun(_inputs)
+            # print('debug')
+
+
             model = KM.Model(inputs, outputs, name='mask_rcnn')
+
+
         else:
             # Network Heads
             # Proposal classifier and BBox regressor heads
@@ -2210,7 +2362,7 @@ class MaskRCNN():
                 fpn_classifier_graph(rpn_rois, mrcnn_feature_maps, input_image_meta,
                                      config.POOL_SIZE, config.NUM_CLASSES,
                                      train_bn=config.TRAIN_BN,
-                                     fc_layers_size=config.FPN_CLASSIF_FC_LAYERS_SIZE,
+                                     features_size=config.FPN_CLASSIF_FC_LAYERS_SIZE,
                                      num_rois=config.POST_NMS_ROIS_INFERENCE)
 
             # Detections output is [batch, num_detections, (y1, x1, y2, x2, class_id, score)] in normalized coordinates
@@ -2356,16 +2508,23 @@ class MaskRCNN():
             optimizer=optimizer,
             loss=[None] * len(self.keras_model.outputs))
 
+        metric_names = ["rpn_class_acc", "mrcnn_class_acc", "rpn_class_loss", "rpn_bbox_loss", "mrcnn_class_loss",
+                        "mrcnn_bbox_loss", "mrcnn_mask_loss"]
+
         # Add metrics for losses
-        for name in loss_names:
+        for name in metric_names:
             if name in self.keras_model.metrics_names:
                 continue
             layer = self.keras_model.get_layer(name)
             self.keras_model.metrics_names.append(name)
-            loss = (
+            if 'loss' in name:
+                metric = (
                 tf.reduce_mean(layer.output, keepdims=True)
                 * self.config.LOSS_WEIGHTS.get(name, 1.))
-            self.keras_model.metrics_tensors.append(loss)
+            else:
+                # Calc Accuracy
+                metric = tf.reduce_mean(layer.output, keepdims=True)
+            self.keras_model.metrics_tensors.append(metric)
 
     def set_trainable(self, layer_regex, keras_model=None, indent=0, verbose=1):
         """Sets model layers as trainable if their names match

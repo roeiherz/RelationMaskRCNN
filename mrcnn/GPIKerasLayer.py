@@ -123,3 +123,34 @@ class GPIKerasExpandGraphLayer(KE.Layer):
 
     def compute_output_shape(self, input_shape):
         return (self.batch_size, self.num_rois, self.feature_size)
+
+
+class GPIKerasForgetLayer(KE.Layer):
+    """Takes classified proposal boxes and their bounding box deltas and
+    returns the final detection boxes.
+
+    Returns:
+    [batch, num_detections, (y1, x1, y2, x2, class_id, class_score)] where
+    coordinates are normalized.
+    """
+
+    def __init__(self, num_rois, feature_size=1024, batch_size=1, gpi_type='FeatureAttention', **kwargs):
+        super(GPIKerasForgetLayer, self).__init__(**kwargs)
+        self.num_rois = num_rois
+        self.gpi_type = gpi_type
+        self.batch_size = batch_size
+        self.feature_size = feature_size
+
+    def call(self, inputs):
+        # Object features - [batch ,num_boxes , feature_size]
+        rho_delta = inputs[0]
+        # Relation features - [batch ,num_boxes , feature_size]
+        rho_forget = inputs[1]
+        # Relation features - [batch ,num_boxes , feature_size]
+        node_features = inputs[2]
+
+        # [batch ,num_boxes , feature_size]
+        return rho_delta + rho_forget * node_features
+
+    def compute_output_shape(self, input_shape):
+        return (self.batch_size, self.num_rois, self.feature_size)
