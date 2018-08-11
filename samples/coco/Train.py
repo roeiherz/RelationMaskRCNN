@@ -123,5 +123,6 @@ if __name__ == '__main__':
                 learning_rate=config.LEARNING_RATE / 10,
                 epochs=160,
                 layers='all',
-                augmentation=augmentation)
+                augmentation=augmentation,
+                workers_nb=config.WORKERS_NB)
 
