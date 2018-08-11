@@ -48,6 +48,9 @@ class Config(object):
     # down the training.
     VALIDATION_STEPS = 50
 
+    # Number of workers
+    WORKERS_NB = 5
+
     # Backbone network architecture
     # Supported values are: resnet50, resnet101.
     # You can also provide a callable that should have the signature
@@ -169,10 +172,9 @@ class Config(object):
     DETECTION_NMS_THRESHOLD = 0.3
 
     # Learning rate and momentum
-    # The Mask RCNN paper uses lr=0.02, but on TensorFlow it causes
-    # weights to explode. Likely due to differences in optimzer
-    # implementation.
-    LEARNING_RATE = 0.001
+    # The Mask RCNN paper uses lr=0.02, but on TensorFlow it causes weights to explode.
+    # Likely due to differences in optimizer implementation.
+    LEARNING_RATE = 0.01
     LEARNING_MOMENTUM = 0.9
 
     # Weight decay regularization
@@ -183,7 +185,7 @@ class Config(object):
     LOSS_WEIGHTS = {
         "rpn_class_loss": 1.,
         "rpn_bbox_loss": 1.,
-        "mrcnn_class_loss": 10.,
+        "mrcnn_class_loss": 1.,
         "mrcnn_bbox_loss": 1.,
         "mrcnn_mask_loss": 1.
     }
