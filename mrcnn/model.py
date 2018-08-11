@@ -999,124 +999,124 @@ def fpn_classifier_graph(rois, feature_maps, image_meta, pool_size, num_classes,
     x = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn2_single')(x, training=train_bn)
     x = KL.Activation('relu')(x)
     # shared_single_features - [batch, num_rois, 1024]
-    shared_single_features = KL.Lambda(lambda x: K.squeeze(K.squeeze(x, 3), 2), name="pool_squeeze_single")(x)
+    shared_improved_features = KL.Lambda(lambda x: K.squeeze(K.squeeze(x, 3), 2), name="pool_squeeze_single")(x)
 
-    # Get Union Bounding Boxes for pairwise features - [batch, num_boxes, num_boxes, (y1, x1, y2, x2)]
-    pairwise_rois = UnionROISLayer(num_rois=num_rois, name="union_rois")([rois])
-
-    # todo: delete
-    # # Translate normalized coordinates in the resized image to pixel
-    # # coordinates in the original image before resizing
-    # window = np.array([0, 0, 1024, 1024])
-    # image_shape = (1024, 1024, 3)
-    # original_image_shape = (1024, 1024, 3)
-    # window = utils.norm_boxes(window, image_shape[:2])
-    # wy1, wx1, wy2, wx2 = window
-    # shift = np.array([wy1, wx1, wy1, wx1])
-    # wh = wy2 - wy1  # window height
-    # ww = wx2 - wx1  # window width
-    # scale = np.array([wh, ww, wh, ww])
-    # # Convert boxes to normalized coordinates on the window
-    # boxes = np.divide(rois - shift, scale)
-    # # Convert boxes to pixel coordinates on the original image
-    # boxes = utils.denorm_boxes(boxes, original_image_shape[:2])
-
-    # Reshape - [batch, num_boxes * num_boxes, (y1, x1, y2, x2)]
-    pairwise_rois_reshaped = KL.Reshape((num_rois * num_rois, 4), name="pairwise_rois_reshaped")(pairwise_rois)
-
-    # ROI Pooling for Relations
-    pairwise_pooled = PyramidROIAlign([pool_size, pool_size], name="roi_align_pairwise_classifier")(
-        [pairwise_rois_reshaped, image_meta] + feature_maps)
-
-    # Two 1024 FC layers (implemented with Conv2D for consistency)
-    xx = KL.TimeDistributed(KL.Conv2D(features_size, (pool_size, pool_size), padding="valid"),
-                            name="mrcnn_class_conv1_pairwise")(pairwise_pooled)
-    xx = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn1_pairwise')(xx, training=train_bn)
-    xx = KL.Activation('relu')(xx)
-    xx = KL.TimeDistributed(KL.Conv2D(features_size, (1, 1)),
-                            name="mrcnn_class_conv2_pairwise")(xx)
-    xx = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn2_pairwise')(xx, training=train_bn)
-    xx = KL.Activation('relu')(xx)
-    shared_pairwise_features = KL.Lambda(lambda xx: K.squeeze(K.squeeze(xx, 3), 2), name="pool_squeeze_pairwise")(xx)
-
-    ############################################################
-    #  Graph Permeation Invariant Model
-    # ----------------------------------------------------------
-    # GPI - Implementation of GPI module in detection.
-    # Paper - https://arxiv.org/abs/1802.05451
-    # Git Implementation in https://github.com/shikorab/SceneGraph
-    ############################################################
-
-    # entity_features - [batch, num_boxes, features_size + 4]
-    # relation_features - [batch, num_boxes, num_boxes, feature_size * 2 + 4]
-    node_features, relation_features = GPIKerasLayer(num_rois, name='gpi_keras_layer', feature_size=features_size)(
-        [shared_single_features, shared_pairwise_features, rois, pairwise_rois])
-
-    # [batch, num_boxes, num_boxes, (feature_size + 4) * 2 + feature_size * 2 + 4]
-    object_ngbrs_tensor = GPIKerasExpandLayer(num_rois, name='gpi_keras_expand_layer', feature_size=features_size)(
-        [node_features, relation_features])
-
-    # Phi - [batch, num_boxes, num_boxes, 500]
-    phi = KL.Dense(features_size, activation='relu', name='nn_phi_1')(object_ngbrs_tensor)
-    phi = KL.Dense(features_size, activation='relu', name='nn_phi_2')(phi)
-    object_ngbrs_phi = KL.Dense(features_size, activation=None, name='nn_phi_out')(phi)
-
-    # Attention mechanism over phi
-    if gpi_type == "FeatureAttention" or gpi_type == "Linguistic":
-        object_ngbrs_scores = KL.Dense(features_size, activation='relu', name='nn_phi_atten_1')(object_ngbrs_tensor)
-        object_ngbrs_scores = KL.Dense(features_size, activation=None, name='nn_phi_atten_out')(object_ngbrs_scores)
-        object_ngbrs_weights = KL.Softmax(axis=2)(object_ngbrs_scores)
-        object_ngbrs_phi_all = KL.Lambda(lambda x: K.sum(x, axis=2))(
-            KL.Multiply()([object_ngbrs_phi, object_ngbrs_weights]))
-
-    elif gpi_type == "NeighbourAttention":
-        object_ngbrs_scores = KL.Dense(features_size, activation='relu', name='nn_phi_atten_1')(object_ngbrs_tensor)
-        object_ngbrs_scores = KL.Dense(1, activation=None, name='nn_phi_atten_out')(object_ngbrs_scores)
-        object_ngbrs_weights = KL.Softmax(axis=2)(object_ngbrs_scores)
-        object_ngbrs_phi_all = KL.Lambda(lambda x: K.sum(x, axis=2))(
-            KL.Multiply()([object_ngbrs_phi, object_ngbrs_weights]))
-    else:
-        object_ngbrs_phi_all = KL.Lambda(lambda x: K.sum(x, axis=2))(object_ngbrs_phi) / 64.0
-
-    # Nodes
-    object_ngbrs2_tensor = KL.Concatenate(axis=-1)([node_features, object_ngbrs_phi_all])
-
-    # Alpha - [batch, num_boxes, num_boxes, 500]
-    alpha = KL.Dense(features_size, activation='relu', name='nn_alpha_1')(object_ngbrs2_tensor)
-    alpha = KL.Dense(features_size, activation='relu', name='nn_alpha_2')(alpha)
-    object_ngbrs2_alpha = KL.Dense(features_size, activation=None, name='nn_alpha_out')(alpha)
-
-    # Attention mechanism over alpha
-    if gpi_type == "FeatureAttention" or gpi_type == "Linguistic":
-        object_ngbrs2_scores = KL.Dense(features_size, activation='relu', name='nn_alpha_atten_1')(object_ngbrs2_tensor)
-        object_ngbrs2_scores = KL.Dense(features_size, activation=None, name='nn_alpha_atten_out')(object_ngbrs2_scores)
-        object_ngbrs2_weights = KL.Softmax(axis=1)(object_ngbrs2_scores)
-        object_ngbrs_alpha_all = KL.Lambda(lambda x: K.sum(x, axis=1))(
-            KL.Multiply()([object_ngbrs2_alpha, object_ngbrs2_weights]))
-
-    elif gpi_type == "NeighbourAttention":
-        object_ngbrs2_scores = KL.Dense(features_size, activation='relu', name='nn_alpha_atten_1')(object_ngbrs2_tensor)
-        object_ngbrs2_scores = KL.Dense(features_size, activation=None, name='nn_alpha_atten_out')(object_ngbrs2_scores)
-        object_ngbrs2_weights = KL.Softmax(axis=1)(object_ngbrs2_scores)
-        object_ngbrs_alpha_all = KL.Lambda(lambda x: K.sum(x, axis=1))(
-            KL.Multiply()([object_ngbrs2_alpha, object_ngbrs2_weights]))
-    else:
-        object_ngbrs_alpha_all = KL.Lambda(lambda x: K.sum(x, axis=1))(object_ngbrs2_alpha) / 64.0
-
-    # Graph encoding - [num_boxes, 500]
-    expand_graph = GPIKerasExpandGraphLayer(num_rois, feature_size=features_size, name='gpi_keras_expand_graph_layer')(
-        [object_ngbrs_alpha_all])
-
-    # rho entity (entity prediction)
-    # The input is entity features, entity neighbour features and the representation of the graph
-    object_all_features = KL.Concatenate(axis=-1)([node_features, expand_graph])
-    rho_delta = KL.Dense(500, activation='relu', name='nn_rho_1')(object_all_features)
-    rho_delta = KL.Dense(features_size, activation='relu', name='nn_rho_2')(rho_delta)
-    rho_forget = KL.Dense(features_size, activation='sigmoid', name='nn_rho_forget_gate')(object_all_features)
-    shared_improved_features = GPIKerasForgetLayer(num_rois, feature_size=features_size, name="forget_layer")\
-        ([rho_delta, rho_forget, shared_single_features])
-    # shared_improved_features = rho_delta + rho_forget * shared_single_features
-    # shared_improved_features = KL.Dense(1024, activation=None, name='nn_rho_ent_out')(rho_delta)
+    # # Get Union Bounding Boxes for pairwise features - [batch, num_boxes, num_boxes, (y1, x1, y2, x2)]
+    # pairwise_rois = UnionROISLayer(num_rois=num_rois, name="union_rois")([rois])
+    #
+    # # todo: delete
+    # # # Translate normalized coordinates in the resized image to pixel
+    # # # coordinates in the original image before resizing
+    # # window = np.array([0, 0, 1024, 1024])
+    # # image_shape = (1024, 1024, 3)
+    # # original_image_shape = (1024, 1024, 3)
+    # # window = utils.norm_boxes(window, image_shape[:2])
+    # # wy1, wx1, wy2, wx2 = window
+    # # shift = np.array([wy1, wx1, wy1, wx1])
+    # # wh = wy2 - wy1  # window height
+    # # ww = wx2 - wx1  # window width
+    # # scale = np.array([wh, ww, wh, ww])
+    # # # Convert boxes to normalized coordinates on the window
+    # # boxes = np.divide(rois - shift, scale)
+    # # # Convert boxes to pixel coordinates on the original image
+    # # boxes = utils.denorm_boxes(boxes, original_image_shape[:2])
+    #
+    # # Reshape - [batch, num_boxes * num_boxes, (y1, x1, y2, x2)]
+    # pairwise_rois_reshaped = KL.Reshape((num_rois * num_rois, 4), name="pairwise_rois_reshaped")(pairwise_rois)
+    #
+    # # ROI Pooling for Relations
+    # pairwise_pooled = PyramidROIAlign([pool_size, pool_size], name="roi_align_pairwise_classifier")(
+    #     [pairwise_rois_reshaped, image_meta] + feature_maps)
+    #
+    # # Two 1024 FC layers (implemented with Conv2D for consistency)
+    # xx = KL.TimeDistributed(KL.Conv2D(features_size, (pool_size, pool_size), padding="valid"),
+    #                         name="mrcnn_class_conv1_pairwise")(pairwise_pooled)
+    # xx = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn1_pairwise')(xx, training=train_bn)
+    # xx = KL.Activation('relu')(xx)
+    # xx = KL.TimeDistributed(KL.Conv2D(features_size, (1, 1)),
+    #                         name="mrcnn_class_conv2_pairwise")(xx)
+    # xx = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn2_pairwise')(xx, training=train_bn)
+    # xx = KL.Activation('relu')(xx)
+    # shared_pairwise_features = KL.Lambda(lambda xx: K.squeeze(K.squeeze(xx, 3), 2), name="pool_squeeze_pairwise")(xx)
+    #
+    # ############################################################
+    # #  Graph Permeation Invariant Model
+    # # ----------------------------------------------------------
+    # # GPI - Implementation of GPI module in detection.
+    # # Paper - https://arxiv.org/abs/1802.05451
+    # # Git Implementation in https://github.com/shikorab/SceneGraph
+    # ############################################################
+    #
+    # # entity_features - [batch, num_boxes, features_size + 4]
+    # # relation_features - [batch, num_boxes, num_boxes, feature_size * 2 + 4]
+    # node_features, relation_features = GPIKerasLayer(num_rois, name='gpi_keras_layer', feature_size=features_size)(
+    #     [shared_single_features, shared_pairwise_features, rois, pairwise_rois])
+    #
+    # # [batch, num_boxes, num_boxes, (feature_size + 4) * 2 + feature_size * 2 + 4]
+    # object_ngbrs_tensor = GPIKerasExpandLayer(num_rois, name='gpi_keras_expand_layer', feature_size=features_size)(
+    #     [node_features, relation_features])
+    #
+    # # Phi - [batch, num_boxes, num_boxes, 500]
+    # phi = KL.Dense(features_size, activation='relu', name='nn_phi_1')(object_ngbrs_tensor)
+    # phi = KL.Dense(features_size, activation='relu', name='nn_phi_2')(phi)
+    # object_ngbrs_phi = KL.Dense(features_size, activation=None, name='nn_phi_out')(phi)
+    #
+    # # Attention mechanism over phi
+    # if gpi_type == "FeatureAttention" or gpi_type == "Linguistic":
+    #     object_ngbrs_scores = KL.Dense(features_size, activation='relu', name='nn_phi_atten_1')(object_ngbrs_tensor)
+    #     object_ngbrs_scores = KL.Dense(features_size, activation=None, name='nn_phi_atten_out')(object_ngbrs_scores)
+    #     object_ngbrs_weights = KL.Softmax(axis=2)(object_ngbrs_scores)
+    #     object_ngbrs_phi_all = KL.Lambda(lambda x: K.sum(x, axis=2))(
+    #         KL.Multiply()([object_ngbrs_phi, object_ngbrs_weights]))
+    #
+    # elif gpi_type == "NeighbourAttention":
+    #     object_ngbrs_scores = KL.Dense(features_size, activation='relu', name='nn_phi_atten_1')(object_ngbrs_tensor)
+    #     object_ngbrs_scores = KL.Dense(1, activation=None, name='nn_phi_atten_out')(object_ngbrs_scores)
+    #     object_ngbrs_weights = KL.Softmax(axis=2)(object_ngbrs_scores)
+    #     object_ngbrs_phi_all = KL.Lambda(lambda x: K.sum(x, axis=2))(
+    #         KL.Multiply()([object_ngbrs_phi, object_ngbrs_weights]))
+    # else:
+    #     object_ngbrs_phi_all = KL.Lambda(lambda x: K.sum(x, axis=2))(object_ngbrs_phi) / 64.0
+    #
+    # # Nodes
+    # object_ngbrs2_tensor = KL.Concatenate(axis=-1)([node_features, object_ngbrs_phi_all])
+    #
+    # # Alpha - [batch, num_boxes, num_boxes, 500]
+    # alpha = KL.Dense(features_size, activation='relu', name='nn_alpha_1')(object_ngbrs2_tensor)
+    # alpha = KL.Dense(features_size, activation='relu', name='nn_alpha_2')(alpha)
+    # object_ngbrs2_alpha = KL.Dense(features_size, activation=None, name='nn_alpha_out')(alpha)
+    #
+    # # Attention mechanism over alpha
+    # if gpi_type == "FeatureAttention" or gpi_type == "Linguistic":
+    #     object_ngbrs2_scores = KL.Dense(features_size, activation='relu', name='nn_alpha_atten_1')(object_ngbrs2_tensor)
+    #     object_ngbrs2_scores = KL.Dense(features_size, activation=None, name='nn_alpha_atten_out')(object_ngbrs2_scores)
+    #     object_ngbrs2_weights = KL.Softmax(axis=1)(object_ngbrs2_scores)
+    #     object_ngbrs_alpha_all = KL.Lambda(lambda x: K.sum(x, axis=1))(
+    #         KL.Multiply()([object_ngbrs2_alpha, object_ngbrs2_weights]))
+    #
+    # elif gpi_type == "NeighbourAttention":
+    #     object_ngbrs2_scores = KL.Dense(features_size, activation='relu', name='nn_alpha_atten_1')(object_ngbrs2_tensor)
+    #     object_ngbrs2_scores = KL.Dense(features_size, activation=None, name='nn_alpha_atten_out')(object_ngbrs2_scores)
+    #     object_ngbrs2_weights = KL.Softmax(axis=1)(object_ngbrs2_scores)
+    #     object_ngbrs_alpha_all = KL.Lambda(lambda x: K.sum(x, axis=1))(
+    #         KL.Multiply()([object_ngbrs2_alpha, object_ngbrs2_weights]))
+    # else:
+    #     object_ngbrs_alpha_all = KL.Lambda(lambda x: K.sum(x, axis=1))(object_ngbrs2_alpha) / 64.0
+    #
+    # # Graph encoding - [num_boxes, 500]
+    # expand_graph = GPIKerasExpandGraphLayer(num_rois, feature_size=features_size, name='gpi_keras_expand_graph_layer')(
+    #     [object_ngbrs_alpha_all])
+    #
+    # # rho entity (entity prediction)
+    # # The input is entity features, entity neighbour features and the representation of the graph
+    # object_all_features = KL.Concatenate(axis=-1)([node_features, expand_graph])
+    # rho_delta = KL.Dense(500, activation='relu', name='nn_rho_1')(object_all_features)
+    # rho_delta = KL.Dense(features_size, activation='relu', name='nn_rho_2')(rho_delta)
+    # rho_forget = KL.Dense(features_size, activation='sigmoid', name='nn_rho_forget_gate')(object_all_features)
+    # shared_improved_features = GPIKerasForgetLayer(num_rois, feature_size=features_size, name="forget_layer")\
+    #     ([rho_delta, rho_forget, shared_single_features])
+    # # shared_improved_features = rho_delta + rho_forget * shared_single_features
+    # # shared_improved_features = KL.Dense(1024, activation=None, name='nn_rho_ent_out')(rho_delta)
 
     # Classifier head
     mrcnn_class_logits = KL.TimeDistributed(KL.Dense(num_classes), name='mrcnn_class_logits')(shared_improved_features)
