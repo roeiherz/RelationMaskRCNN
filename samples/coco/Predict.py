@@ -93,8 +93,8 @@ if __name__ == '__main__':
         # Batch size = GPU_COUNT * IMAGES_PER_GPU
         GPU_COUNT = 1
         IMAGES_PER_GPU = 1
-        DETECTION_MIN_CONFIDENCE = 0.7
-        POST_NMS_ROIS_INFERENCE = 64
+        DETECTION_MIN_CONFIDENCE = 0.0
+        POST_NMS_ROIS_INFERENCE = 50
 
 
     config = InferenceConfig()
