@@ -1021,6 +1021,28 @@ def smooth_l1_loss(y_true, y_pred):
     loss = (less_than_one * 0.5 * diff**2) + (1 - less_than_one) * (diff - 0.5)
     return loss
 
+def rpn_class_metric_graph(rpn_match, rpn_class_logits):
+    """RPN anchor classifier metric.
+
+    rpn_match: [batch, anchors, 1]. Anchor match type. 1=positive,
+               -1=negative, 0=neutral anchor.
+    rpn_class_logits: [batch, anchors, 2]. RPN classifier logits for FG/BG.
+    """
+    # Squeeze last dim to simplify
+    rpn_match = tf.squeeze(rpn_match, -1)
+    # Get anchor classes. Convert the -1/+1 match to 0/1 values.
+    anchor_class = K.cast(K.equal(rpn_match, 1), tf.int32)
+    # Positive and Negative anchors contribute to the loss,
+    # but neutral anchors (match value = 0) don't.
+    indices = tf.where(K.not_equal(rpn_match, 0))
+    # Pick rows that contribute to the loss and filter out the rest.
+    rpn_class_logits = tf.gather_nd(rpn_class_logits, indices)
+    anchor_class = tf.gather_nd(anchor_class, indices)
+
+    acc = K.mean(K.equal(tf.cast(anchor_class,'int64'), K.argmax(rpn_class_logits, axis=-1)))
+    acc = K.switch(tf.size(acc) > 0, K.mean(acc), tf.constant(0.0))
+    return acc
+
 
 def rpn_class_loss_graph(rpn_match, rpn_class_logits):
     """RPN anchor classifier loss.
@@ -1078,6 +1100,32 @@ def rpn_bbox_loss_graph(config, target_bbox, rpn_match, rpn_bbox):
 
     loss = K.switch(tf.size(loss) > 0, K.mean(loss), tf.constant(0.0))
     return loss
+
+def mrcnn_class_metric_graph(target_class_ids, pred_class_logits, active_class_ids):
+    """Loss for the classifier head of Mask RCNN.
+
+    target_class_ids: [batch, num_rois]. Integer class IDs. Uses zero
+        padding to fill in the array.
+    pred_class_logits: [batch, num_rois, num_classes]
+    active_class_ids: [batch, num_classes]. 
+        Has a value of 1 for classes that are in the dataset of the image, 
+        and 0 for classes that are not in the dataset.
+    """
+    # During model building, Keras calls this function with
+    # target_class_ids of type float32. Unclear why. Cast it
+    # to int to get around it.
+    target_class_ids = tf.cast(target_class_ids, 'int64')
+
+    # Find predictions of classes that are not in the dataset.
+    pred_class_ids = tf.argmax(pred_class_logits, axis=2)
+    # TODO: Update this line to work with batch > 1. Right now it assumes all
+    # images in a batch have the same active_class_ids
+    # pred_active = tf.gather(active_class_ids[0], pred_class_ids)
+    # target_class_ids_active = tf.gather(active_class_ids[0], target_class_ids)
+
+    acc = K.mean(K.equal(target_class_ids, pred_class_ids))
+    acc = K.switch(tf.size(acc) > 0, K.mean(acc), tf.constant(0.0))
+    return acc
 
 
 def mrcnn_class_loss_graph(target_class_ids, pred_class_logits,
@@ -2013,6 +2061,12 @@ class MaskRCNN():
             mask_loss = KL.Lambda(lambda x: mrcnn_mask_loss_graph(*x), name="mrcnn_mask_loss")(
                 [target_mask, target_class_ids, mrcnn_mask])
 
+            # Metrics
+            rpn_class_acc = KL.Lambda(lambda x: rpn_class_metric_graph(*x), name="rpn_class_acc")(
+                [input_rpn_match, rpn_class_logits])
+            class_acc = KL.Lambda(lambda x: mrcnn_class_metric_graph(*x), name="mrcnn_class_acc")(
+                [target_class_ids, mrcnn_class_logits, active_class_ids])
+
             # Model
             inputs = [input_image, input_image_meta,
                       input_rpn_match, input_rpn_bbox, input_gt_class_ids, input_gt_boxes, input_gt_masks]
@@ -2021,7 +2075,8 @@ class MaskRCNN():
             outputs = [rpn_class_logits, rpn_class, rpn_bbox,
                        mrcnn_class_logits, mrcnn_class, mrcnn_bbox, mrcnn_mask,
                        rpn_rois, output_rois,
-                       rpn_class_loss, rpn_bbox_loss, class_loss, bbox_loss, mask_loss]
+                       rpn_class_loss, rpn_bbox_loss, class_loss, bbox_loss, mask_loss,
+                       rpn_class_acc, class_acc]
             model = KM.Model(inputs, outputs, name='mask_rcnn')
         else:
             # Network Heads
@@ -2177,16 +2232,23 @@ class MaskRCNN():
             optimizer=optimizer,
             loss=[None] * len(self.keras_model.outputs))
 
+        metric_names = ["rpn_class_acc", "mrcnn_class_acc", "rpn_class_loss", "rpn_bbox_loss", "mrcnn_class_loss",
+                        "mrcnn_bbox_loss", "mrcnn_mask_loss"]
+
         # Add metrics for losses
-        for name in loss_names:
+        for name in metric_names:
             if name in self.keras_model.metrics_names:
                 continue
             layer = self.keras_model.get_layer(name)
             self.keras_model.metrics_names.append(name)
-            loss = (
+            if 'loss' in name:
+                metric = (
                 tf.reduce_mean(layer.output, keepdims=True)
                 * self.config.LOSS_WEIGHTS.get(name, 1.))
-            self.keras_model.metrics_tensors.append(loss)
+            else:
+                # Calc Accuracy
+                metric = tf.reduce_mean(layer.output, keepdims=True)
+            self.keras_model.metrics_tensors.append(metric)
 
     def set_trainable(self, layer_regex, keras_model=None, indent=0, verbose=1):
         """Sets model layers as trainable if their names match
