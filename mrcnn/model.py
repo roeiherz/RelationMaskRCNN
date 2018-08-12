@@ -2334,6 +2334,7 @@ class MaskRCNN():
                        rpn_class_loss, rpn_bbox_loss, class_loss, bbox_loss, mask_loss,
                        rpn_class_acc, class_acc]
 
+            # # @todo: delete this
             # fun = K.function(inputs, [bbox_loss])
             # # fun = K.function(inputs, [target_bbox, rpn_bbox])
             #
