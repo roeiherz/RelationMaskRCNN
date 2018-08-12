@@ -49,7 +49,9 @@ class Config(object):
     VALIDATION_STEPS = 50
 
     # Number of workers
-    WORKERS_NB = 5
+    WORKERS_NB = 10
+    # QUEUE Size
+    QUEUE_SIZE = 200
 
     # Backbone network architecture
     # Supported values are: resnet50, resnet101.

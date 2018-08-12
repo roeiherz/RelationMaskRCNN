@@ -124,5 +124,6 @@ if __name__ == '__main__':
                 epochs=160,
                 layers='all',
                 augmentation=augmentation,
-                workers_nb=config.WORKERS_NB)
+                workers_nb=config.WORKERS_NB,
+                queue_size=config.QUEUE_SIZE)
 
