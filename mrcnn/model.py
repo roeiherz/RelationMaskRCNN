@@ -1057,21 +1057,21 @@ def fpn_classifier_graph(rois, feature_maps, image_meta, pool_size, num_classes,
         [node_features, relation_features])
 
     # Phi - [batch, num_boxes, num_boxes, 500]
-    phi = KL.Dense(features_size, activation='relu', name='nn_phi_1')(object_ngbrs_tensor)
-    phi = KL.Dense(features_size, activation='relu', name='nn_phi_2')(phi)
-    object_ngbrs_phi = KL.Dense(features_size, activation=None, name='nn_phi_out')(phi)
+    phi = KL.TimeDistributed(KL.Dense(features_size, activation='relu'), name='nn_phi_1')(object_ngbrs_tensor)
+    phi = KL.TimeDistributed(KL.Dense(features_size, activation='relu'), name='nn_phi_2')(phi)
+    object_ngbrs_phi = KL.TimeDistributed(KL.Dense(features_size, activation=None), name='nn_phi_out')(phi)
 
     # Attention mechanism over phi
     if gpi_type == "FeatureAttention" or gpi_type == "Linguistic":
-        object_ngbrs_scores = KL.Dense(features_size, activation='relu', name='nn_phi_atten_1')(object_ngbrs_tensor)
-        object_ngbrs_scores = KL.Dense(features_size, activation=None, name='nn_phi_atten_out')(object_ngbrs_scores)
+        object_ngbrs_scores = KL.TimeDistributed(KL.Dense(features_size, activation='relu'), name='nn_phi_atten_1')(object_ngbrs_tensor)
+        object_ngbrs_scores = KL.TimeDistributed(KL.Dense(features_size, activation=None), name='nn_phi_atten_out')(object_ngbrs_scores)
         object_ngbrs_weights = KL.Softmax(axis=2)(object_ngbrs_scores)
         object_ngbrs_phi_all = KL.Lambda(lambda x: K.sum(x, axis=2))(
             KL.Multiply()([object_ngbrs_phi, object_ngbrs_weights]))
 
     elif gpi_type == "NeighbourAttention":
-        object_ngbrs_scores = KL.Dense(features_size, activation='relu', name='nn_phi_atten_1')(object_ngbrs_tensor)
-        object_ngbrs_scores = KL.Dense(1, activation=None, name='nn_phi_atten_out')(object_ngbrs_scores)
+        object_ngbrs_scores = KL.TimeDistributed(KL.Dense(features_size, activation='relu'), name='nn_phi_atten_1')(object_ngbrs_tensor)
+        object_ngbrs_scores = KL.TimeDistributed(KL.Dense(1, activation=None), name='nn_phi_atten_out')(object_ngbrs_scores)
         object_ngbrs_weights = KL.Softmax(axis=2)(object_ngbrs_scores)
         object_ngbrs_phi_all = KL.Lambda(lambda x: K.sum(x, axis=2))(
             KL.Multiply()([object_ngbrs_phi, object_ngbrs_weights]))
@@ -1082,21 +1082,21 @@ def fpn_classifier_graph(rois, feature_maps, image_meta, pool_size, num_classes,
     object_ngbrs2_tensor = KL.Concatenate(axis=-1)([node_features, object_ngbrs_phi_all])
 
     # Alpha - [batch, num_boxes, num_boxes, 500]
-    alpha = KL.Dense(features_size, activation='relu', name='nn_alpha_1')(object_ngbrs2_tensor)
-    alpha = KL.Dense(features_size, activation='relu', name='nn_alpha_2')(alpha)
-    object_ngbrs2_alpha = KL.Dense(features_size, activation=None, name='nn_alpha_out')(alpha)
+    alpha = KL.TimeDistributed(KL.Dense(features_size, activation='relu'), name='nn_alpha_1')(object_ngbrs2_tensor)
+    alpha = KL.TimeDistributed(KL.Dense(features_size, activation='relu'), name='nn_alpha_2')(alpha)
+    object_ngbrs2_alpha = KL.TimeDistributed(KL.Dense(features_size, activation=None), name='nn_alpha_out')(alpha)
 
     # Attention mechanism over alpha
     if gpi_type == "FeatureAttention" or gpi_type == "Linguistic":
-        object_ngbrs2_scores = KL.Dense(features_size, activation='relu', name='nn_alpha_atten_1')(object_ngbrs2_tensor)
-        object_ngbrs2_scores = KL.Dense(features_size, activation=None, name='nn_alpha_atten_out')(object_ngbrs2_scores)
+        object_ngbrs2_scores = KL.TimeDistributed(KL.Dense(features_size, activation='relu'), name='nn_alpha_atten_1')(object_ngbrs2_tensor)
+        object_ngbrs2_scores = KL.TimeDistributed(KL.Dense(features_size, activation=None), name='nn_alpha_atten_out')(object_ngbrs2_scores)
         object_ngbrs2_weights = KL.Softmax(axis=1)(object_ngbrs2_scores)
         object_ngbrs_alpha_all = KL.Lambda(lambda x: K.sum(x, axis=1))(
             KL.Multiply()([object_ngbrs2_alpha, object_ngbrs2_weights]))
 
     elif gpi_type == "NeighbourAttention":
-        object_ngbrs2_scores = KL.Dense(features_size, activation='relu', name='nn_alpha_atten_1')(object_ngbrs2_tensor)
-        object_ngbrs2_scores = KL.Dense(features_size, activation=None, name='nn_alpha_atten_out')(object_ngbrs2_scores)
+        object_ngbrs2_scores = KL.TimeDistributed(KL.Dense(features_size, activation='relu'), name='nn_alpha_atten_1')(object_ngbrs2_tensor)
+        object_ngbrs2_scores = KL.TimeDistributed(KL.Dense(1, activation=None), name='nn_alpha_atten_out')(object_ngbrs2_scores)
         object_ngbrs2_weights = KL.Softmax(axis=1)(object_ngbrs2_scores)
         object_ngbrs_alpha_all = KL.Lambda(lambda x: K.sum(x, axis=1))(
             KL.Multiply()([object_ngbrs2_alpha, object_ngbrs2_weights]))
@@ -1110,9 +1110,9 @@ def fpn_classifier_graph(rois, feature_maps, image_meta, pool_size, num_classes,
     # rho entity (entity prediction)
     # The input is entity features, entity neighbour features and the representation of the graph
     object_all_features = KL.Concatenate(axis=-1)([node_features, expand_graph])
-    rho_delta = KL.Dense(500, activation='relu', name='nn_rho_1')(object_all_features)
-    rho_delta = KL.Dense(features_size, activation='relu', name='nn_rho_2')(rho_delta)
-    rho_forget = KL.Dense(features_size, activation='sigmoid', name='nn_rho_forget_gate')(object_all_features)
+    rho_delta = KL.TimeDistributed(KL.Dense(500, activation='relu'), name='nn_rho_1')(object_all_features)
+    rho_delta = KL.TimeDistributed(KL.Dense(features_size, activation='relu'), name='nn_rho_2')(rho_delta)
+    rho_forget = KL.TimeDistributed(KL.Dense(features_size, activation='sigmoid'), name='nn_rho_forget_gate')(object_all_features)
     shared_improved_features = GPIKerasForgetLayer(num_rois, feature_size=features_size, name="forget_layer")\
         ([rho_delta, rho_forget, shared_single_features])
     # shared_improved_features = rho_delta + rho_forget * shared_single_features
