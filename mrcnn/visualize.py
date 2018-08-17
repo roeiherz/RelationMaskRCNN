@@ -165,6 +165,7 @@ def save_instances(image, boxes, gt_boxes, class_ids, gt_class_id, class_names, 
     # Save image
     ax.imshow(masked_image.astype(np.uint8))
     plt.savefig(path)
+    print("Figure saved in {}".format(path))
 
 
 def display_instances(image, boxes, masks, class_ids, class_names,
