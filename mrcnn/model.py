@@ -990,19 +990,22 @@ def fpn_classifier_graph(rois, feature_maps, image_meta, pool_size, num_classes,
     single_pooled = PyramidROIAlign([pool_size, pool_size],
                                     name="roi_align_object_classifier")(
         [rois, image_meta] + feature_maps)
+
+    # shared_single_features = KL.GlobalAveragePooling2D(name='global_avg_pool')(single_pooled)
     # Two 1024 FC layers (implemented with Conv2D for consistency)
-    x = KL.TimeDistributed(KL.Conv2D(features_size, (pool_size, pool_size), padding="valid"),
+    x = KL.TimeDistributed(KL.Conv2D(256, (pool_size, pool_size), padding="valid"),
                            name="mrcnn_class_conv1_single")(single_pooled)
     x = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn1_single')(x, training=train_bn)
     x = KL.Activation('relu')(x)
-    x = KL.TimeDistributed(KL.Conv2D(features_size, (1, 1)), name="mrcnn_class_conv2_single")(x)
-    x = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn2_single')(x, training=train_bn)
-    x = KL.Activation('relu')(x)
+    # x = KL.TimeDistributed(KL.Conv2D(features_size, (1, 1)), name="mrcnn_class_conv2_single")(x)
+    # x = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn2_single')(x, training=train_bn)
+    # x = KL.Activation('relu')(x)
     # shared_single_features - [batch, num_rois, 1024]
     shared_single_features = KL.Lambda(lambda x: K.squeeze(K.squeeze(x, 3), 2), name="pool_squeeze_single")(x)
 
     # Get Union Bounding Boxes for pairwise features - [batch, num_boxes, num_boxes, (y1, x1, y2, x2)]
     pairwise_rois = UnionROISLayer(num_rois=num_rois, name="union_rois")([rois])
+    pairwise_rois_reshaped = KL.Reshape((num_rois * num_rois, 4), name="pairwise_rois_reshaped")(pairwise_rois)
 
     # todo: delete
     # # Translate normalized coordinates in the resized image to pixel
@@ -1022,21 +1025,20 @@ def fpn_classifier_graph(rois, feature_maps, image_meta, pool_size, num_classes,
     # boxes = utils.denorm_boxes(boxes, original_image_shape[:2])
 
     # Reshape - [batch, num_boxes * num_boxes, (y1, x1, y2, x2)]
-    pairwise_rois_reshaped = KL.Reshape((num_rois * num_rois, 4), name="pairwise_rois_reshaped")(pairwise_rois)
 
-    # ROI Pooling for Relations
+    # # ROI Pooling for Relations
     pairwise_pooled = PyramidROIAlign([pool_size, pool_size], name="roi_align_pairwise_classifier")(
         [pairwise_rois_reshaped, image_meta] + feature_maps)
-
+    #
     # Two 1024 FC layers (implemented with Conv2D for consistency)
     xx = KL.TimeDistributed(KL.Conv2D(features_size, (pool_size, pool_size), padding="valid"),
                             name="mrcnn_class_conv1_pairwise")(pairwise_pooled)
     xx = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn1_pairwise')(xx, training=train_bn)
     xx = KL.Activation('relu')(xx)
-    xx = KL.TimeDistributed(KL.Conv2D(features_size, (1, 1)),
-                            name="mrcnn_class_conv2_pairwise")(xx)
-    xx = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn2_pairwise')(xx, training=train_bn)
-    xx = KL.Activation('relu')(xx)
+    # xx = KL.TimeDistributed(KL.Conv2D(features_size, (1, 1)),
+    #                         name="mrcnn_class_conv2_pairwise")(xx)
+    # xx = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn2_pairwise')(xx, training=train_bn)
+    # xx = KL.Activation('relu')(xx)
     shared_pairwise_features = KL.Lambda(lambda xx: K.squeeze(K.squeeze(xx, 3), 2), name="pool_squeeze_pairwise")(xx)
 
     ############################################################
@@ -1112,7 +1114,7 @@ def fpn_classifier_graph(rois, feature_maps, image_meta, pool_size, num_classes,
     object_all_features = KL.Concatenate(axis=-1)([node_features, expand_graph])
     rho_delta = KL.Dense(500, activation='relu', name='nn_rho_1')(object_all_features)
     rho_delta = KL.Dense(features_size, activation='relu', name='nn_rho_2')(rho_delta)
-    rho_forget = KL.Dense(features_size, activation='sigmoid', name='nn_rho_forget_gate')(object_all_features)
+    rho_forget = KL.Dense(1024, activation='sigmoid', name='nn_rho_forget_gate')(object_all_features)
     shared_improved_features = GPIKerasForgetLayer(num_rois, feature_size=features_size, name="forget_layer")\
         ([rho_delta, rho_forget, shared_single_features])
     # shared_improved_features = rho_delta + rho_forget * shared_single_features
