@@ -1112,9 +1112,9 @@ def fpn_classifier_graph(rois, feature_maps, image_meta, pool_size, num_classes,
     # rho entity (entity prediction)
     # The input is entity features, entity neighbour features and the representation of the graph
     object_all_features = KL.Concatenate(axis=-1)([node_features, expand_graph])
-    rho_delta = KL.Dense(500, activation='relu', name='nn_rho_1')(object_all_features)
+    rho_delta = KL.Dense(features_size, activation='relu', name='nn_rho_1')(object_all_features)
     rho_delta = KL.Dense(features_size, activation='relu', name='nn_rho_2')(rho_delta)
-    rho_forget = KL.Dense(1024, activation='sigmoid', name='nn_rho_forget_gate')(object_all_features)
+    rho_forget = KL.Dense(features_size, activation='sigmoid', name='nn_rho_forget_gate')(object_all_features)
     shared_improved_features = GPIKerasForgetLayer(num_rois, feature_size=features_size, name="forget_layer")\
         ([rho_delta, rho_forget, shared_single_features])
     # shared_improved_features = rho_delta + rho_forget * shared_single_features
