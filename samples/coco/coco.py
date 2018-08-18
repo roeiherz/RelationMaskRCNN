@@ -93,7 +93,7 @@ class CocoConfig(Config):
     TRAIN_ROIS_PER_IMAGE = 64
 
     # Size of the fully-connected layers in the classification graph
-    FPN_CLASSIF_FC_LAYERS_SIZE = 516
+    FPN_CLASSIF_FC_LAYERS_SIZE = 256
 
     # Percent of positive ROIs used to train classifier/mask heads
     ROI_POSITIVE_RATIO = 0.33
