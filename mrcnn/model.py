@@ -2591,8 +2591,8 @@ class MaskRCNN():
             regex = r".*/[\w-]+(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})/mask\_rcnn\_[\w-]+(\d{4})\.h5"
             m = re.match(regex, model_path)
             if m:
-                now = datetime.datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)),
-                                        int(m.group(4)), int(m.group(5)))
+                # now = datetime.datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)),
+                #                         int(m.group(4)), int(m.group(5)))
                 # Epoch number in file is 1-based, and in Keras code it's 0-based.
                 # So, adjust for that then increment by one to start from the next epoch
                 self.epoch = int(m.group(6)) - 1 + 1
