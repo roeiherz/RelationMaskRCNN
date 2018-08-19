@@ -80,6 +80,8 @@ class CocoConfig(Config):
     # Adjust down if you use a smaller GPU.
     IMAGES_PER_GPU = 1
 
+    TRAINABLE_BACKBONE = True
+
     # Uncomment to train on 8 GPUs (default is 1)
     # GPU_COUNT = 8
 
@@ -90,10 +92,10 @@ class CocoConfig(Config):
     # The Mask RCNN paper uses 512 but often the RPN doesn't generate
     # enough positive proposals to fill this and keep a positive:negative
     # ratio of 1:3. You can increase the number of proposals by adjusting the RPN NMS threshold.
-    TRAIN_ROIS_PER_IMAGE = 32
+    TRAIN_ROIS_PER_IMAGE = 16
 
     # Size of the fully-connected layers in the classification graph
-    FPN_CLASSIF_FC_LAYERS_SIZE = 256
+    FPN_CLASSIF_FC_LAYERS_SIZE = 512
 
     # Percent of positive ROIs used to train classifier/mask heads
     ROI_POSITIVE_RATIO = 0.33

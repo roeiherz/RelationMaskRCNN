@@ -60,6 +60,9 @@ class Config(object):
     # to COMPUTE_BACKBONE_SHAPE as well
     BACKBONE = "resnet101"
 
+    # Train backbone weight
+    TRAINABLE_BACKBONE = True
+
     # Only useful if you supply a callable to BACKBONE. Should compute
     # the shape of each layer of the FPN Pyramid.
     # See model.compute_backbone_shapes
