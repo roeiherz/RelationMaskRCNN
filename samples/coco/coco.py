@@ -82,6 +82,8 @@ class CocoConfig(Config):
 
     # Train or not backbone weights
     TRAINABLE_BACKBONE = False
+    TRAINABLE_FPN = False
+    TRAINABLE_RPN = False
 
     # Uncomment to train on 8 GPUs (default is 1)
     # GPU_COUNT = 8

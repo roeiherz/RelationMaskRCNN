@@ -62,6 +62,8 @@ class Config(object):
 
     # Train backbone weight
     TRAINABLE_BACKBONE = True
+    TRAINABLE_FPN = True
+    TRAINABLE_RPN = True
 
     # Only useful if you supply a callable to BACKBONE. Should compute
     # the shape of each layer of the FPN Pyramid.
