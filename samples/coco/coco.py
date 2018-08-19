@@ -80,7 +80,7 @@ class CocoConfig(Config):
     # Adjust down if you use a smaller GPU.
     IMAGES_PER_GPU = 1
 
-    TRAINABLE_BACKBONE = True
+    TRAINABLE_BACKBONE = False
 
     # Uncomment to train on 8 GPUs (default is 1)
     # GPU_COUNT = 8
