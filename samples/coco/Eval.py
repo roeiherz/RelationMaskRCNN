@@ -78,7 +78,7 @@ if __name__ == '__main__':
         GPU_COUNT = 1
         IMAGES_PER_GPU = 1
         DETECTION_MIN_CONFIDENCE = 0
-        POST_NMS_ROIS_INFERENCE = 50
+        POST_NMS_ROIS_INFERENCE = 100
 
 
     config = InferenceConfig()
