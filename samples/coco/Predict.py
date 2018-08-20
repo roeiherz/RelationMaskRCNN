@@ -86,7 +86,6 @@ if __name__ == '__main__':
     # Define GPU training
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
 
-
     # Configurations
     class InferenceConfig(CocoConfig):
         # Set batch size to 1 since we'll be running inference on one image at a time.
@@ -94,7 +93,7 @@ if __name__ == '__main__':
         GPU_COUNT = 1
         IMAGES_PER_GPU = 1
         DETECTION_MIN_CONFIDENCE = 0.0
-        POST_NMS_ROIS_INFERENCE = 16
+        POST_NMS_ROIS_INFERENCE = 100
 
 
     config = InferenceConfig()
