@@ -7,6 +7,12 @@ import os
 
 FILE_EXISTS_ERROR = (17, 'File exists')
 
+INPUT_ROOT = "/data_ssd_1T/herzig/Data/Incidents"
+OUTPUT_ROOT = "/data_ssd_1T/herzig/Data/Incidents"
+
+# INPUT_ROOT = "/Users/roeiherzig/Downloads/"
+# OUTPUT_ROOT = "/Users/roeiherzig/Incidents"
+
 
 def create_folder(path):
     """

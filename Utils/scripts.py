@@ -1,4 +1,4 @@
-from Utils import download_incidents
+from Utils import download_incidents, INPUT_ROOT, OUTPUT_ROOT
 
 __author__ = 'roeiherz'
 
@@ -12,5 +12,4 @@ def download_data(input, output):
 
 
 if __name__ == '__main__':
-    download_data(input="/Users/roeiherzig/Downloads/Find_Video S3 Path for Incident_2018_04_10.csv",
-                  output="/Users/roeiherzig/Incidents")
+    download_data(input=INPUT_ROOT, output=OUTPUT_ROOT)
