@@ -13,4 +13,4 @@ def download_data(input, output):
 
 
 if __name__ == '__main__':
-    download_data(input=os.path.join(INPUT_ROOT, "Find_Video S3 Path for Incident_2018_04_10.csv"), output=OUTPUT_ROOT)
+    download_data(input=os.path.join(INPUT_ROOT, "Find_Video S3 Path for Incident_2018_04_12.csv"), output=OUTPUT_ROOT)
