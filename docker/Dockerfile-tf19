@@ -1,0 +1,54 @@
+FROM tensorflow/tensorflow:1.9.0-rc1-gpu
+RUN apt-get update
+RUN apt-get install apt-transport-https
+RUN apt-get update
+RUN apt-get install -qq -y                 \
+        cmake                              \
+        autoconf                           \
+        automake                           \
+        libtool                            \
+        build-essential                    \
+        checkinstall                       \
+        pkg-config                         \
+        unzip                              \
+        libsasl2-dev                       \
+        python3-tk                         \
+        nano                               \
+        ffmpeg                             \
+        wget
+
+# For ffmpeg
+RUN apt-get install -qq -y                 \
+        libavformat-dev                    \
+        libavcodec-extra                   \
+        libavdevice-dev                    \
+        libavutil-dev                      \
+        libavfilter-dev                    \
+        libswscale-dev                     \
+        libswresample-dev
+
+# For opencv contrib
+RUN apt-get install -qq -y                 \
+       libsm6                              \
+       libxext6
+
+RUN pip install keras==2.1.6
+RUN pip install opencv-python==3.2.0.7
+RUN pip install opencv-contrib-python
+RUN pip install easydict==1.7
+RUN pip install joblib==0.11
+RUN pip install Pillow==4.0.0
+RUN pip install scikit-image==0.13.0
+RUN pip install imageio==2.2.0
+RUN pip install keras-resnet
+RUN pip install matplotlib
+RUN pip install boto3
+RUN pip install pyhive
+RUN pip install request
+RUN pip install geopy
+RUN pip install shapely
+RUN pip install pyproj
+RUN pip install psycopg2
+RUN pip install requests
+RUN pip install av
+RUN pip install resnet
