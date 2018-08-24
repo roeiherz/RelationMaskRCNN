@@ -7,11 +7,13 @@ import os
 
 FILE_EXISTS_ERROR = (17, 'File exists')
 
-INPUT_ROOT = "/data_ssd_1T/herzig/Data/Incidents"
-OUTPUT_ROOT = "/data_ssd_1T/herzig/Data/Incidents"
+# INPUT_ROOT = "/data_ssd_1T/herzig/Data/Incidents"
+# OUTPUT_ROOT = "/data_ssd_1T/herzig/Data/Incidents"
+# INDEX_FILE = ""
 
-# INPUT_ROOT = "/Users/roeiherzig/Downloads/"
-# OUTPUT_ROOT = "/Users/roeiherzig/Incidents"
+INDEX_FILE = "/Users/roeiherzig/Datasets/Incidents/index.csv"
+INPUT_ROOT = "/Users/roeiherzig/Downloads/"
+OUTPUT_ROOT = "/Users/roeiherzig/Incidents"
 
 
 def create_folder(path):
@@ -62,13 +64,23 @@ def rotate_bound(image, angle):
     return cv2.warpAffine(image, M, (nW, nH))
 
 
-def video_to_frames(input_video, out_dir, refinment=1):
+def video_to_frames(input_video, out_dir, refinment=1, jump=False):
     video = av.open(input_video.encode("utf8"))
     rotation = int(video.streams[0].metadata.get('rotate', 0))
     vidcap = cv2.VideoCapture(input_video)
+
+    # Jump using fps
+    if jump:
+        duration = float(video.streams[0].duration * video.streams[0].time_base)
+        frames = video.streams[0].frames
+        fps = int(round(frames / duration))
+    else:
+        fps = 1
+
     count = 0
     image_files = []
     counter = 0
+    index = 0
     while True:
         success, image = vidcap.read()
         if not success:
@@ -79,10 +91,12 @@ def video_to_frames(input_video, out_dir, refinment=1):
             continue
 
         image = rotate_bound(image, rotation)
-        outpath = os.path.join(out_dir, "%.6d.jpg" % (count))
+        outpath = os.path.join(out_dir, "%.6d.jpg" % (index))
 
-        cv2.imwrite(outpath, image)
-        image_files.append(outpath)
+        if count % fps == 0:
+            cv2.imwrite(outpath, image)
+            image_files.append(outpath)
+            index += 1
         count = count + 1
 
 
