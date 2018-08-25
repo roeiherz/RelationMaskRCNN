@@ -6,9 +6,9 @@ from Utils import create_folder, video_to_frames, download_incidents
 
 __author__ = 'roeiherz'
 
-VIDEO_PATH = "/home/roeiherzig/data/Incidents/Videos"
-INDEX_PATH = "/home/roeiherzig/data/Incidents/index.csv"
-IMAGE_PATH = "/home/roeiherzig/data/Incidents/Images"
+VIDEO_PATH = "/data/Incidents/Videos"
+INDEX_PATH = "/data/Incidents/index.csv"
+IMAGE_PATH = "/data/Incidents/Images"
 
 
 def get_video_links(index_path):
@@ -49,7 +49,7 @@ if __name__ == "__main__":
 
     # Check directory exists
     if not os.path.exists(args.video):
-        print('Can not find videos directory: {}'.format(args.i))
+        print('Can not find videos directory: {}'.format(args.video))
         exit(-1)
 
     for split in ['Train', 'Test']:
