@@ -61,7 +61,7 @@ if __name__ == "__main__":
 
         # Get files
         files = os.listdir(video_path)
-        # files = ['412563fe-ce68-4c17-92ce-b8770d6fb140.mov']
+        # files = ['incident-2319d2801dff97e4bb2dbda2c4f37fae.mp4']
         print('Number of files: {} from input directory'.format(len(files)))
 
         for base_name in files:
@@ -75,13 +75,13 @@ if __name__ == "__main__":
                     # Without extension
                     out_dir = os.path.join(img_path, os.path.splitext(base_name)[0])
 
-                    if os.path.exists(out_dir):
-                        print("Dir {} already exists".format(base_name))
-                        continue
+                    # if os.path.exists(out_dir):
+                    #     print("Dir {} already exists".format(base_name))
+                    #     continue
 
-                    create_folder(out_dir)
+                    # create_folder(out_dir)
                     print('{} --> {}'.format(video_path, out_dir))
-                    video_to_frames(in_dir, out_dir, jump=True)
+                    video_to_frames(in_dir, out_dir, jump=True, fps=5)
 
             except Exception as e:
                 print("Error in incident {} with {}".format(base_name, str(e)))

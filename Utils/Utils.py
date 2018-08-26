@@ -64,17 +64,17 @@ def rotate_bound(image, angle):
     return cv2.warpAffine(image, M, (nW, nH))
 
 
-def video_to_frames(input_video, out_dir, refinment=1, jump=False):
+def video_to_frames(input_video, out_dir, refinment=1, jump=False, fps=None):
     video = av.open(input_video.encode("utf8"))
     rotation = int(video.streams[0].metadata.get('rotate', 0))
     vidcap = cv2.VideoCapture(input_video)
 
-    # Jump using fps
-    if jump:
+    # Jump using fps with its None
+    if jump and fps is None:
         duration = float(video.streams[0].duration * video.streams[0].time_base)
         frames = video.streams[0].frames
         fps = int(round(frames / duration))
-    else:
+    elif fps is None:
         fps = 1
 
     count = 0
