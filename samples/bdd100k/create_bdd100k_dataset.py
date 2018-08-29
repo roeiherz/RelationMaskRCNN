@@ -73,7 +73,7 @@ if __name__ == '__main__':
         print('Can not find data set BDD100K directory: {}'.format(args.dataset_dir))
         exit(-1)
 
-    csv_data, labels = get_data(args.dataset_dir, args.mode, pixel_thr=20)
+    csv_data, labels = get_data(args.dataset_dir, pixel_thr=20)
 
     # Save annotations to csv file
     path_write_file = "bdd100k_annotations.csv"
