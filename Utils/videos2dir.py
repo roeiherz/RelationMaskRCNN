@@ -39,9 +39,9 @@ if __name__ == "__main__":
 
     # Use Local params
     if args.local:
-        args.video = "/Users/roeiherzig/Datasets/Incidents/Videos/"
-        args.index = "/Users/roeiherzig/Datasets/Incidents/Videos/index.csv"
-        args.image = "/Users/roeiherzig/Datasets/Incidents/Images/"
+        args.video = "/Users/roeiherzig/Datasets/Accidents/Videos/"
+        args.index = "/Users/roeiherzig/Datasets/Accidents/index_tmp.csv"
+        args.image = "/Users/roeiherzig/Datasets/Accidents/Images/"
 
     # Download Incidents
     if args.download:

@@ -7,13 +7,14 @@ import os
 
 FILE_EXISTS_ERROR = (17, 'File exists')
 
-# INPUT_ROOT = "/data_ssd_1T/herzig/Data/Incidents"
-# OUTPUT_ROOT = "/data_ssd_1T/herzig/Data/Incidents"
-# INDEX_FILE = ""
+VIDEO_PATH = "/data/Incidents/Videos"
+INDEX_PATH = "/data/Incidents/index.csv"
+IMAGE_PATH = "/data/Incidents/Images"
 
-INDEX_FILE = "/Users/roeiherzig/Datasets/Incidents/index.csv"
-INPUT_ROOT = "/Users/roeiherzig/Downloads/"
-OUTPUT_ROOT = "/Users/roeiherzig/Incidents"
+
+# INDEX_FILE = "/Users/roeiherzig/Datasets/Incidents/index.csv"
+# INPUT_ROOT = "/Users/roeiherzig/Downloads/"
+# OUTPUT_ROOT = "/Users/roeiherzig/Incidents"
 
 
 def create_folder(path):
