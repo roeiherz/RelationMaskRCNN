@@ -116,14 +116,19 @@ def download_incidents(input_file="", output_dir=""):
             if ind == 0:
                 continue
 
-            pb_link = row[0]
-            ind = pb_link.find(".com")
+            # Negative example
+            if row[3] != 'yes':
+                continue
 
-            # pb_link = "{}/{}".format("nexar-upload", pb_link[ind + 5:])
-            pb_link = pb_link[ind + 5:]
-            # s3://nexar-upload/user/25da72a103f16be86fb50c1d457a3d87/ride/d4576d10bb0b58432f094bd24602411b/artifacts/incident-2319d2801dff97e4bb2dbda2c4f37fae.mp4
+            link = row[1]
+            parse = link[link.find("?") + 1:]
+            parse = parse.split("&")
+            download_link = "user/{}/ride/{}/artifacts/incident-{}.mp4".format(parse[0][parse[0].find("=") + 1:],
+                                                                                parse[1][parse[1].find("=") + 1:],
+                                                                                parse[2][parse[2].find("=") + 1:])
+            # user/25da72a103f16be86fb50c1d457a3d87/ride/d4576d10bb0b58432f094bd24602411b/artifacts/incident-2319d2801dff97e4bb2dbda2c4f37fae.mp4
 
-            pb_links.append(pb_link)
+            pb_links.append(download_link)
 
     download_from_s3('nexar-upload', pb_links, output_dir)
 

@@ -6,9 +6,9 @@ from Utils import create_folder, video_to_frames, download_incidents
 
 __author__ = 'roeiherz'
 
-VIDEO_PATH = "/data/Incidents/Videos"
-INDEX_PATH = "/data/Incidents/index.csv"
-IMAGE_PATH = "/data/Incidents/Images"
+VIDEO_PATH = "/data/Accidents/Videos"
+INDEX_PATH = "/data/Accidents/index.csv"
+IMAGE_PATH = "/data/Accidents/Images"
 
 
 def get_video_links(index_path):
@@ -30,7 +30,7 @@ if __name__ == "__main__":
     """
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--local', help='input directory of videos', action='store', default=False)
+    parser.add_argument('--local', help='local variable for debugging', action='store', default=False)
     parser.add_argument('--download', help='input directory of videos', action='store', default=False)
     parser.add_argument('--video', help='input directory of videos', action='store', default=VIDEO_PATH)
     parser.add_argument('--index', help='index file path', action='store', default=INDEX_PATH)
@@ -45,43 +45,41 @@ if __name__ == "__main__":
 
     # Download Incidents
     if args.download:
-        download_incidents(input_file=args.index, output_dir=args.input)
+        download_incidents(input_file=args.index, output_dir=args.video)
 
     # Check directory exists
     if not os.path.exists(args.video):
         print('Can not find videos directory: {}'.format(args.video))
         exit(-1)
 
-    for split in ['Train', 'Test']:
+    # # Video Path
+    # video_path = os.path.join(args.video, split)
+    # # Image path
+    # img_path = os.path.join(args.image, split)
 
-        # Video Path
-        video_path = os.path.join(args.video, split)
-        # Image path
-        img_path = os.path.join(args.image, split)
+    # Get files
+    files = os.listdir(args.video)
+    # files = ['incident-2319d2801dff97e4bb2dbda2c4f37fae.mp4']
+    print('Number of files: {} from input directory'.format(len(files)))
 
-        # Get files
-        files = os.listdir(video_path)
-        # files = ['incident-2319d2801dff97e4bb2dbda2c4f37fae.mp4']
-        print('Number of files: {} from input directory'.format(len(files)))
+    for base_name in files:
+        try:
 
-        for base_name in files:
-            try:
+            # Process only if its a video
+            if '.mov' in base_name or '.mp4' in base_name:
 
-                # Process only if its a video
-                if '.mov' in base_name or '.mp4' in base_name:
+                # video file
+                in_dir = os.path.join(args.video, base_name)
+                # Without extension
+                out_dir = os.path.join(args.image, os.path.splitext(base_name)[0])
 
-                    # video file
-                    in_dir = os.path.join(video_path, base_name)
-                    # Without extension
-                    out_dir = os.path.join(img_path, os.path.splitext(base_name)[0])
+                if os.path.exists(out_dir):
+                    print("Dir {} already exists".format(base_name))
+                    continue
 
-                    # if os.path.exists(out_dir):
-                    #     print("Dir {} already exists".format(base_name))
-                    #     continue
+                create_folder(out_dir)
+                print('{} --> {}'.format(args.video, out_dir))
+                video_to_frames(in_dir, out_dir, jump=True, fps=5)
 
-                    # create_folder(out_dir)
-                    print('{} --> {}'.format(video_path, out_dir))
-                    video_to_frames(in_dir, out_dir, jump=True, fps=5)
-
-            except Exception as e:
-                print("Error in incident {} with {}".format(base_name, str(e)))
+        except Exception as e:
+            print("Error in incident {} with {}".format(base_name, str(e)))
