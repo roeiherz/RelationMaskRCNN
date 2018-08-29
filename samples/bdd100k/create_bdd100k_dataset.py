@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 import json
 
-DATASET_PATH = "/home/roeiherzig/data/BDD/bdd100k/labels/100k/"
+DATASET_PATH = "/data/BDD/bdd100k/labels/100k/"
 
 
 def get_data(dir_path, mode='train', pixel_thr=20):
@@ -69,7 +69,7 @@ if __name__ == '__main__':
 
     # Check directory exists
     if not os.path.exists(args.dataset_dir):
-        print('Can not find data set BDD100K directory: {}'.format(args.input))
+        print('Can not find data set BDD100K directory: {}'.format(args.dataset_dir))
         exit(-1)
 
     csv_data, labels = get_data(args.dataset_dir, args.mode, pixel_thr=20)
