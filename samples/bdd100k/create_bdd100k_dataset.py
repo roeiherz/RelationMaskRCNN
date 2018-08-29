@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 import json
 
-DATASET_PATH = ""
+DATASET_PATH = "/home/roeiherzig/data/BDD/bdd100k/labels/100k/"
 
 
 def get_data(dir_path, mode='train', pixel_thr=20):
