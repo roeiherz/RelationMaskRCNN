@@ -2155,8 +2155,8 @@ class MaskRCNN():
             regex = r".*/[\w-]+(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})/mask\_rcnn\_[\w-]+(\d{4})\.h5"
             m = re.match(regex, model_path)
             if m:
-                now = datetime.datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)),
-                                        int(m.group(4)), int(m.group(5)))
+                # now = datetime.datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)),
+                #                         int(m.group(4)), int(m.group(5)))
                 # Epoch number in file is 1-based, and in Keras code it's 0-based.
                 # So, adjust for that then increment by one to start from the next epoch
                 self.epoch = int(m.group(6)) - 1 + 1
@@ -2177,7 +2177,7 @@ class MaskRCNN():
             "*epoch*", "{epoch:04d}")
 
     def train(self, train_dataset, val_dataset, learning_rate, epochs, layers,
-              augmentation=None, workers_nb=0):
+              augmentation=None, workers_nb=0, queue_size=100):
         """Train the model.
         train_dataset, val_dataset: Training and validation Dataset objects.
         learning_rate: The learning rate to train with
@@ -2258,7 +2258,7 @@ class MaskRCNN():
             callbacks=callbacks,
             validation_data=val_generator,
             validation_steps=self.config.VALIDATION_STEPS,
-            max_queue_size=100,
+            max_queue_size=queue_size,
             workers=workers,
             use_multiprocessing=False,
         )
