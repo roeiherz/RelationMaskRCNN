@@ -35,7 +35,7 @@ def get_data(dir_path, mode='train', pixel_thr=20):
                     continue
 
                 # Get image path
-                img_path = "{0}/images/100k/{1}/{2}.jpg".format(dir_path, mode, fl.split('.')[0])
+                img_path = "BBD/bdd100k/images/100k/{}/{}.jpg".format(mode, fl.split('.')[0])
                 x1 = int(obj['box2d']['x1'])
                 y1 = int(obj['box2d']['y1'])
                 x2 = int(obj['box2d']['x2'])
