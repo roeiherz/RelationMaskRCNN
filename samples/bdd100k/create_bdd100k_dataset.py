@@ -20,7 +20,7 @@ def get_data(dir_path, pixel_thr=20):
     """
     csv_data = []
     labels = set([])
-    for mode in ['train', 'test']:
+    for mode in ['train', 'val']:
         print("Get data from {}".format(mode))
         for fl in os.listdir(os.path.join(dir_path, mode)):
 
