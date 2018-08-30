@@ -619,7 +619,7 @@ class DetectionTargetLayer(KE.Layer):
 
         # Slice the batch and run a graph for each slice
         # TODO: Rename target_bbox to target_deltas for clarity
-        names = ["rois", "target_class_ids", "target_bbox", "target_mask"]
+        names = ["rois", "target_class_ids", "target_bbox"]
         outputs = utils.batch_slice(
             [proposals, gt_class_ids, gt_boxes],
             lambda w, x, y: detection_targets_graph(
@@ -1894,9 +1894,8 @@ class MaskRCNN():
             # Subsamples proposals and generates target outputs for training
             # Note that proposal class IDs, gt_boxes, and gt_masks are zero
             # padded. Equally, returned rois and targets are zero padded.
-            rois, target_class_ids, target_bbox, target_mask =\
-                DetectionTargetLayer(config, name="proposal_targets")([
-                    target_rois, input_gt_class_ids, gt_boxes])
+            rois, target_class_ids, target_bbox =\
+                DetectionTargetLayer(config, name="proposal_targets")([target_rois, input_gt_class_ids, gt_boxes])
 
             # Network Heads
             # TODO: verify that this handles zero padded ROIs
