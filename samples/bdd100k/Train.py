@@ -16,7 +16,7 @@ import argparse
 # Directory to save logs and model checkpoints, if not provided through the command line argument --logs
 DEFAULT_LOGS_DIR = os.path.join(ROOT_DIR, "logs")
 # Dataset path for the data
-DATASET_DIR = "/home/roeiherzig/data/BDD/bdd100k/"
+DATASET_DIR = "/data/BDD/bdd100k/"
 
 if __name__ == '__main__':
 
