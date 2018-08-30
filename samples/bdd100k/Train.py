@@ -63,7 +63,7 @@ if __name__ == '__main__':
     print("Number of Workers: ", args.workers)
 
     # Define GPU training
-    os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
+    # os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
 
     # Configurations training
     config = BDD100KConfig()
