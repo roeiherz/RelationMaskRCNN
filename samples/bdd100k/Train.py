@@ -4,12 +4,12 @@ import sys
 import time
 
 # Import Mask RCNN
-from samples.bdd100k.BDD100K import BDD100KDataset, BDD100KConfig
 
 ROOT_DIR = os.path.abspath("../../")
 sys.path.append(ROOT_DIR)  # To find local version of the library
 # Root directory of the project
 from mrcnn import model as modellib
+from samples.bdd100k.BDD100K import BDD100KDataset, BDD100KConfig
 import argparse
 
 
