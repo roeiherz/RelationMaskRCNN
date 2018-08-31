@@ -6,7 +6,9 @@ import pandas as pd
 import numpy as np
 import json
 
+
 DATASET_PATH = "/data/BDD/bdd100k/labels/100k/"
+PIXEL_THR = 5
 
 
 def get_data(dir_path, mode='train', pixel_thr=20):
@@ -74,10 +76,10 @@ if __name__ == '__main__':
         print('Can not find data set BDD100K directory: {}'.format(args.dataset_dir))
         exit(-1)
 
-    csv_data, labels = get_data(args.dataset_dir, args.mode, pixel_thr=20)
+    csv_data, labels = get_data(args.dataset_dir, args.mode, pixel_thr=PIXEL_THR)
 
     # Save annotations to csv file
-    path_write_file = "bdd100k_annotations_{0}.csv".format(args.mode)
+    path_write_file = "bdd100k_annotations_trax_{0}.csv".format(args.mode)
     with open(path_write_file, 'wb') as fl:
         writer = csv.writer(fl)
         writer.writerows(csv_data)
@@ -91,7 +93,7 @@ if __name__ == '__main__':
         ind += 1
         csv_labels.append(label)
 
-    path_write_file = "bdd100k_class_mappings_{0}.csv".format(args.mode)
+    path_write_file = "bdd100k_class_mappings_trax_{0}.csv".format(args.mode)
     with open(path_write_file, 'wb') as fl:
         writer = csv.writer(fl)
         writer.writerows(csv_labels)
