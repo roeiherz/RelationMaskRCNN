@@ -53,7 +53,6 @@ COCO_MODEL_PATH = os.path.join(ROOT_DIR, "mask_rcnn_coco.h5")
 DEFAULT_LOGS_DIR = os.path.join(ROOT_DIR, "logs")
 
 
-
 ############################################################
 #  Configurations
 ############################################################
@@ -80,7 +79,7 @@ class BDD100KConfig(Config):
     QUEUE_SIZE = 10
 
     # Number of classes
-    NUM_CLASSES = 2  # Incident/ No Incident
+    NUM_CLASSES = 11  # BDD100K 10 classes + 1 negative
 
     # Train or not backbone weights
     TRAINABLE_BACKBONE = True
@@ -107,6 +106,10 @@ class BDD100KConfig(Config):
 
     # Non-maximum suppression threshold for detection (for inference)
     DETECTION_NMS_THRESHOLD = 0.3
+
+    # Image meta data length
+    # See compose_image_meta() for details
+    IMAGE_META_SIZE = 1 + 3 + 3 + 4 + 1 + NUM_CLASSES
 
 
 ############################################################
