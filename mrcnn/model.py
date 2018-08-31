@@ -1215,7 +1215,8 @@ def load_image_gt(dataset, config, image_id, augment=False, augmentation=None):
     """
     # Load image and mask
     image = dataset.load_image(image_id)
-    # class_ids = dataset.load_class_ids(image_id)
+    class_ids = np.array([dataset.class_names.index(label) for label in dataset.image_info[image_id]['labels']])
+    # Used for coco and others
     # mask, class_ids = dataset.load_mask(image_id)
     original_shape = image.shape
     image, window, scale, padding, crop = utils.resize_image(
@@ -1246,7 +1247,9 @@ def load_image_gt(dataset, config, image_id, augment=False, augmentation=None):
     # Bounding boxes. Note that some boxes might be all zeros
     # if the corresponding mask got cropped out.
     # bbox: [num_instances, (y1, x1, y2, x2)]
-    bbox = utils.extract_bboxes(mask)
+    bbox = np.array(dataset.image_info[image_id]['boxes'])
+    # Used for coco and others
+    # bbox = utils.extract_bboxes(mask)
 
     # Active classes
     # Different datasets have different classes, so track the
@@ -1651,7 +1654,7 @@ def data_generator(dataset, config, shuffle=True, augment=False, augmentation=No
                 rpn_rois = generate_random_rois(
                     image.shape, random_rois, gt_class_ids, gt_boxes)
                 if detection_targets:
-                    rois, mrcnn_class_ids, mrcnn_bbox, mrcnn_mask =\
+                    rois, mrcnn_class_ids, mrcnn_bbox =\
                         build_detection_targets(
                             rpn_rois, gt_class_ids, gt_boxes, config)
 

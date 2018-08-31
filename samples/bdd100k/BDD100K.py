@@ -245,18 +245,27 @@ class BDD100KDataset(utils.Dataset):
             for index, img_path in enumerate(images_data):
                 img_data = images_data[img_path]
                 img_id = os.path.basename(img_path).split('.')[0]
+                boxes = []
+                labels = []
+                widths = []
+                heights = []
                 for detection in img_data:
-                    box = [detection['x1'], detection['y1'], detection['x2'], detection['y2']]
+                    box = [detection['y1'], detection['x1'], detection['y2'], detection['x2']]
+                    boxes.append(box)
                     label = detection['class']
+                    labels.append(label)
                     width = detection['width']
+                    widths.append(width)
                     height = detection['height']
-                    self.add_image("bdd100k",
-                                   image_id=img_id,
-                                   path=img_path,
-                                   width=width,
-                                   height=height,
-                                   box=box,
-                                   label=label)
+                    heights.append(height)
+
+                self.add_image("bdd100k",
+                               image_id=img_id,
+                               path=img_path,
+                               widths=widths,
+                               heights=heights,
+                               boxes=boxes,
+                               labels=labels)
 
         except ValueError as e:
             raise_from(ValueError('invalid CSV annotations file: {}: {}'.format(mappings_csv, e)), None)
