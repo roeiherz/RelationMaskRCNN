@@ -5,6 +5,8 @@ import time
 import random
 import matplotlib.pyplot as plt
 # Import Mask RCNN
+from samples.bdd100k.BDD100K import BDD100KDataset, BDD100KConfig
+
 ROOT_DIR = os.path.abspath("../../")
 sys.path.append(ROOT_DIR)  # To find local version of the library
 
@@ -23,6 +25,8 @@ MODEL_PATH = os.path.join(ROOT_DIR, 'weights')
 # through the command line argument --logs
 DEFAULT_LOGS_DIR = os.path.join(ROOT_DIR, "logs")
 DEFAULT_DATASET_YEAR = "2017"
+# Dataset path for the data
+DATASET_DIR = "/data/BDD/bdd100k/"
 
 
 def get_ax(rows=1, cols=1, size=16):
@@ -40,15 +44,13 @@ if __name__ == '__main__':
 
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='Train Mask R-CNN on MS COCO.')
-    parser.add_argument('--dataset', required=True,
-                        default='/specific/netapp5_2/gamir/DER-Roei/datasets/MSCoco',
+    parser.add_argument('--local', help='local debug', action='store', default=False)
+    parser.add_argument('--dataset_dir',
+                        default=DATASET_DIR,
                         metavar="/path/to/coco/",
-                        help='Directory of the MS-COCO dataset')
-    parser.add_argument('--year', required=False,
-                        default=DEFAULT_DATASET_YEAR,
-                        metavar="<year>",
-                        help='Year of the MS-COCO dataset (2014 or 2017) (default=2014)')
-    parser.add_argument('--model', required=True,
+                        help='Directory of the Nexars Incidents dataset')
+    parser.add_argument('--model',
+                        default="nexar",
                         metavar="/path/to/weights.h5",
                         help="Path to weights .h5 file or 'coco'")
     parser.add_argument('--logs', required=False,
@@ -59,11 +61,6 @@ if __name__ == '__main__':
                         default=500,
                         metavar="<image count>",
                         help='Images to use for evaluation (default=500)')
-    parser.add_argument('--download', required=False,
-                        default=False,
-                        metavar="<True|False>",
-                        help='Automatically download and unzip MS-COCO files (default=False)',
-                        type=bool)
     parser.add_argument('--gpu', required=False,
                         default=0,
                         metavar="0, 1, ...",
@@ -76,19 +73,23 @@ if __name__ == '__main__':
                         type=int)
     args = parser.parse_args()
     print("Model: ", args.model)
-    print("Dataset: ", args.dataset)
-    print("Year: ", args.year)
+    print("Dataset dir: ", args.dataset_dir)
     print("Logs: ", args.logs)
-    print("Auto Download: ", args.download)
     print("GPU: ", args.gpu)
     print("Number of Workers: ", args.workers)
+
 
     # Define GPU training
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
 
+    # Use Local params
+    if args.local:
+        args.dataset_dir = "/Users/roeiherzig/Datasets/BDD/bdd100k/"
+        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180831T1657/mask_rcnn_bdd100k_0029.h5"
+        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180831T1657/mask_rcnn_bdd100k_0042.h5"
 
     # Configurations
-    class InferenceConfig(CocoConfig):
+    class InferenceConfig(BDD100KConfig):
         # Set batch size to 1 since we'll be running inference on one image at a time.
         # Batch size = GPU_COUNT * IMAGES_PER_GPU
         GPU_COUNT = 1
@@ -105,7 +106,7 @@ if __name__ == '__main__':
                               model_dir=args.logs)
 
     # Select weights file to load
-    if args.model.lower() == "coco":
+    if args.model.lower() == "bdd100k":
         model_path = model.get_imagenet_weights()
     elif args.model.lower() == "last":
         # Find last trained weights
@@ -127,14 +128,13 @@ if __name__ == '__main__':
     # model_path = os.path.join(model_path, stmp, "mask_rcnn.h5")
 
     # Testing dataset
-    dataset = CocoDataset()
-    coco = dataset.load_coco(args.dataset, "val", year=args.year, return_coco=True, auto_download=args.download)
+    dataset = BDD100KDataset()
+    dataset.load_bdd100k(args.dataset_dir, "val_tmp")
     dataset.prepare()
 
     # image_id = random.choice(dataset.image_ids)
-    image_id = 1473
-    image, image_meta, gt_class_id, gt_bbox, gt_mask = \
-        modellib.load_image_gt(dataset, config, image_id)
+    image_id = 7
+    image, _, gt_class_id, gt_bbox = modellib.load_image_gt(dataset, config, image_id)
     info = dataset.image_info[image_id]
     print("image ID: {}.{} ({}) {}".format(info["source"], info["id"], image_id,
                                            dataset.image_reference(image_id)))
@@ -145,8 +145,8 @@ if __name__ == '__main__':
     ax = get_ax(1)
     r = results[0]
     save_path = "{}_new_weights".format(image_id)
+    image = dataset.load_image(image_id)
     visualize.save_instances(image, r['rois'], gt_bbox, r['class_ids'], gt_class_id, dataset.class_names, r['scores'],
                              ax=ax, title="Predictions_{}".format(info["id"]), path=save_path, show_mask=False)
     print("gt_class_id", gt_class_id)
     print("gt_bbox", gt_bbox)
-    print("gt_mask", gt_mask)
