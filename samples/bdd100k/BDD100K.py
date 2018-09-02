@@ -65,6 +65,7 @@ class BDD100KConfig(Config):
     """
     # Give the configuration a recognizable name
     NAME = "bdd100k"
+    BACKBONE = "resnet50"
 
     # We use a GPU with 12GB memory, which can fit two images.
     # Adjust down if you use a smaller GPU.
