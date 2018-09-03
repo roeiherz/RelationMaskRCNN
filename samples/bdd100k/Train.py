@@ -98,12 +98,12 @@ if __name__ == '__main__':
 
     # Training dataset. Use the training set and 35K from the validation set, as as in the Mask RCNN paper.
     dataset_train = BDD100KDataset()
-    dataset_train.load_bdd100k(args.dataset_dir, "train_tmp")
+    dataset_train.load_bdd100k(args.dataset_dir, "train")
     dataset_train.prepare()
 
     # Validation dataset
     dataset_val = BDD100KDataset()
-    dataset_val.load_bdd100k(args.dataset_dir, "val_tmp")
+    dataset_val.load_bdd100k(args.dataset_dir, "val")
     dataset_val.prepare()
 
     # Image Augmentation
