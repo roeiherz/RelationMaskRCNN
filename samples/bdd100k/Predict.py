@@ -86,7 +86,9 @@ if __name__ == '__main__':
     if args.local:
         args.dataset_dir = "/Users/roeiherzig/Datasets/BDD/bdd100k/"
         # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180831T1657/mask_rcnn_bdd100k_0029.h5"
-        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180831T1657/mask_rcnn_bdd100k_0042.h5"
+        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180831T1657/mask_rcnn_bdd100k_0042.h5"
+        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180831T1657/mask_rcnn_bdd100k_0114.h5"
+        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180902T1624/mask_rcnn_bdd100k_0038.h5"
 
     # Configurations
     class InferenceConfig(BDD100KConfig):
@@ -96,6 +98,7 @@ if __name__ == '__main__':
         IMAGES_PER_GPU = 1
         DETECTION_MIN_CONFIDENCE = 0
         POST_NMS_ROIS_INFERENCE = 50
+        BACKBONE = "resnet50"
 
 
     config = InferenceConfig()
@@ -119,7 +122,7 @@ if __name__ == '__main__':
 
     # Load weights
     print("Loading weights ", model_path)
-    model.load_weights(model_path, by_name=True)
+    model.load_weights(model_path, by_name=True, mode='inference')
 
     # # Save in a new locations
     # stmp = time.strftime("%c").replace(" ", "_")
