@@ -54,7 +54,9 @@ if __name__ == '__main__':
     # Use Local params
     if args.local:
         args.dataset_dir = "/Users/roeiherzig/Datasets/BDD/bdd100k/"
-        args.model = "bdd100k"
+        # args.model = "bdd100k"
+        # Resnet50 model
+        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180902T1624/mask_rcnn_bdd100k_0038.h5"
 
     print("Model: ", args.model)
     print("Dataset dir: ", args.dataset_dir)
@@ -96,12 +98,12 @@ if __name__ == '__main__':
 
     # Training dataset. Use the training set and 35K from the validation set, as as in the Mask RCNN paper.
     dataset_train = BDD100KDataset()
-    dataset_train.load_bdd100k(args.dataset_dir, "train")
+    dataset_train.load_bdd100k(args.dataset_dir, "train_tmp")
     dataset_train.prepare()
 
     # Validation dataset
     dataset_val = BDD100KDataset()
-    dataset_val.load_bdd100k(args.dataset_dir, "val")
+    dataset_val.load_bdd100k(args.dataset_dir, "val_tmp")
     dataset_val.prepare()
 
     # Image Augmentation
