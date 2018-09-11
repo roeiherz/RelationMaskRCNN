@@ -21,7 +21,7 @@ DATASET_DIR = "/data/BDD/bdd100k/"
 if __name__ == '__main__':
 
     # Parse command line arguments
-    parser = argparse.ArgumentParser(description='Train Mask R-CNN on MS COCO.')
+    parser = argparse.ArgumentParser(description='Train Graph Detector on BDD.')
     parser.add_argument('--local', help='input directory of videos', action='store', default=False)
     parser.add_argument('--dataset_dir',
                         default=DATASET_DIR,

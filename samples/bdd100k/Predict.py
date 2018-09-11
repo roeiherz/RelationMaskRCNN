@@ -43,7 +43,7 @@ def get_ax(rows=1, cols=1, size=16):
 if __name__ == '__main__':
 
     # Parse command line arguments
-    parser = argparse.ArgumentParser(description='Train Mask R-CNN on MS COCO.')
+    parser = argparse.ArgumentParser(description='Predict Graph Detector on BDD.')
     parser.add_argument('--local', help='local debug', action='store', default=False)
     parser.add_argument('--dataset_dir',
                         default=DATASET_DIR,
@@ -54,7 +54,7 @@ if __name__ == '__main__':
                         metavar="/path/to/weights.h5",
                         help="Path to weights .h5 file or 'coco'")
     parser.add_argument('--save_path',
-                        default="nexar",
+                        default=None,
                         metavar="/path/to/output_images",
                         help="Save images in path'")
     parser.add_argument('--logs', required=False,

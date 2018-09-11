@@ -55,7 +55,7 @@ def evaluate_bdd(model, dataset, config, iou_threshold=0.5, save_path=None):
 if __name__ == '__main__':
 
     # Parse command line arguments
-    parser = argparse.ArgumentParser(description='Train Mask R-CNN on MS COCO.')
+    parser = argparse.ArgumentParser(description='Eval Graph Detector on BDD.')
     parser.add_argument('--local', help='local debug', action='store', default=False)
     parser.add_argument('--dataset_dir',
                         default=DATASET_DIR,
@@ -66,7 +66,7 @@ if __name__ == '__main__':
                         metavar="/path/to/weights.h5",
                         help="Path to weights .h5 file or 'coco'")
     parser.add_argument('--save_path',
-                        default="nexar",
+                        default=None,
                         metavar="/path/to/output_images",
                         help="Save images in path'")
     parser.add_argument('--logs', required=False,
@@ -107,7 +107,6 @@ if __name__ == '__main__':
         args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180902T1624/mask_rcnn_bdd100k_0038.h5"
         args.save_path = "/Users/roeiherzig/RelationMaskRCNN/samples/bdd100k/"
 
-
     # Configurations
     class InferenceConfig(BDD100KConfig):
         # Set batch size to 1 since we'll be running inference on one image at a time.
@@ -140,12 +139,6 @@ if __name__ == '__main__':
     # Load weights
     print("Loading weights ", model_path)
     model.load_weights(model_path, by_name=True)
-
-    # # Save in a new locations
-    # stmp = time.strftime("%c").replace(" ", "_")
-    # model_path = os.path.join(MODEL_PATH, stmp)
-    # create_folder(model_path)
-    # model_path = os.path.join(model_path, stmp, "mask_rcnn.h5")
 
     # Testing dataset
     dataset = BDD100KDataset()
