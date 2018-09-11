@@ -120,6 +120,9 @@ class BDD100KConfig(Config):
 
     STEPS_PER_EPOCH = 1
 
+    # Number of epochs
+    EPOCH = 200
+
 
 ############################################################
 #  Dataset
