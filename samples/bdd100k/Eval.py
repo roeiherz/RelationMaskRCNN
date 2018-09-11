@@ -140,7 +140,7 @@ if __name__ == '__main__':
 
     # Testing dataset
     dataset = BDD100KDataset()
-    dataset.load_bdd100k(args.dataset_dir, "val_tmp")
+    dataset.load_bdd100k(args.dataset_dir, "val")
     dataset.prepare()
 
     print("Running BDD100K evaluation on {} images.".format(args.limit))
