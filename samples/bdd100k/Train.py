@@ -90,6 +90,13 @@ if __name__ == '__main__':
     print("Loading weights ", model_path)
     model.load_weights(model_path, by_name=True)
 
+    # Check eval map in training at the end of each epoch
+    predicting_model = None
+    if config.EVAL_MAP_IN_TRAINING:
+        # Create model
+        predicting_model = modellib.MaskRCNN(mode="inference", config=config, model_dir=args.logs)
+        predicting_model.load_weights(model_path, by_name=True)
+
     # # Save in a new locations
     # stmp = time.strftime("%c").replace(" ", "_")
     # model_path = os.path.join(MODEL_PATH, stmp)
@@ -119,5 +126,6 @@ if __name__ == '__main__':
                 layers='all',
                 augmentation=augmentation,
                 workers_nb=config.WORKERS_NB,
-                queue_size=config.QUEUE_SIZE)
+                queue_size=config.QUEUE_SIZE,
+                prediction_model=predicting_model)
 

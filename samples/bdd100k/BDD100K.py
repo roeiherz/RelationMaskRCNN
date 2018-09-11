@@ -38,12 +38,13 @@ from six import raise_from
 # import imgaug  # https://github.com/aleju/imgaug (pip3 install imgaug)
 
 # Root directory of the project
+from mrcnn import utils
+
 ROOT_DIR = os.path.abspath("../../")
 
 # Import Mask RCNN
 sys.path.append(ROOT_DIR)  # To find local version of the library
 from mrcnn.config import Config
-from mrcnn import model as modellib, utils
 
 # Path to trained weights file
 COCO_MODEL_PATH = os.path.join(ROOT_DIR, "mask_rcnn_coco.h5")
@@ -51,6 +52,8 @@ COCO_MODEL_PATH = os.path.join(ROOT_DIR, "mask_rcnn_coco.h5")
 # Directory to save logs and model checkpoints, if not provided
 # through the command line argument --logs
 DEFAULT_LOGS_DIR = os.path.join(ROOT_DIR, "logs")
+from mrcnn import model as modellib, visualize
+from mrcnn.utils import compute_overlap, _compute_ap
 
 
 ############################################################
@@ -66,6 +69,9 @@ class BDD100KConfig(Config):
     # Give the configuration a recognizable name
     NAME = "bdd100k"
     BACKBONE = "resnet50"
+
+    # Run eval of map at each end of epoch
+    EVAL_MAP_IN_TRAINING = True
 
     # We use a GPU with 12GB memory, which can fit two images.
     # Adjust down if you use a smaller GPU.
@@ -111,6 +117,8 @@ class BDD100KConfig(Config):
     # Image meta data length
     # See compose_image_meta() for details
     IMAGE_META_SIZE = 1 + 3 + 3 + 4 + 1 + NUM_CLASSES
+
+    STEPS_PER_EPOCH = 1
 
 
 ############################################################
@@ -287,77 +295,142 @@ class BDD100KDataset(utils.Dataset):
 #  Nexar Evaluation
 ############################################################
 
-def build_coco_results(dataset, image_ids, rois, class_ids, scores):
-    """Arrange resutls to match COCO specs in http://cocodataset.org/#format
+def _get_detections_annotations(dataset, model, save_path=None, config=None):
     """
-    # If no results, return an empty list
-    if rois is None:
-        return []
+    Get the detections from the model using the generator.
+    The result is a list of lists such that the size is:
+        all_detections[num_images][num_classes] = detections[num_detections, 4 + num_classes]
 
-    results = []
-    for image_id in image_ids:
-        # Loop through detections
-        for i in range(rois.shape[0]):
-            class_id = class_ids[i]
-            score = scores[i]
-            bbox = np.around(rois[i], 1)
-
-            result = {
-                "image_id": image_id,
-                "category_id": dataset.get_source_class_id(class_id, "coco"),
-                "bbox": [bbox[1], bbox[0], bbox[3] - bbox[1], bbox[2] - bbox[0]],
-                "score": score
-            }
-            results.append(result)
-    return results
-
-
-def evaluate_coco(model, dataset, coco, eval_type="bbox", limit=0, image_ids=None):
-    """Runs official COCO evaluation.
-    dataset: A Dataset object with valiadtion data
-    eval_type: "bbox" or "segm" for bounding box or segmentation evaluation
-    limit: if not 0, it's the number of images to use for evaluation
+    # Arguments
+        generator       : The generator used to run images through the model.
+        model           : The model to run on the images.
+        save_path       : The path to save the images with visualized detections to.
+    # Returns
+        A list of lists containing the detections for each image in the data set.
     """
-    # Pick COCO images from the dataset
-    image_ids = image_ids or dataset.image_ids
-
-    # Limit to a subset
-    if limit:
-        image_ids = image_ids[:limit]
-
-    # Get corresponding COCO image IDs.
-    coco_image_ids = [dataset.image_info[id]["id"] for id in image_ids]
+    all_detections = [[None for i in range(dataset.num_labels())] for j in range(dataset.size())]
+    all_annotations = [[None for i in range(dataset.num_labels())] for j in range(dataset.size())]
+    image_ids = dataset.image_ids
 
     t_prediction = 0
     t_start = time.time()
-
-    results = []
     for i, image_id in enumerate(image_ids):
         # Load image
-        image = dataset.load_image(image_id)
+        image, _, gt_class_id, gt_bbox = modellib.load_image_gt(dataset, config, image_id)
 
         # Run detection
         t = time.time()
         r = model.detect([image], verbose=0)[0]
         t_prediction += (time.time() - t)
 
-        # Convert results to COCO format
-        # Cast masks to uint8 because COCO tools errors out on bool
-        image_results = build_coco_results(dataset, coco_image_ids[i:i + 1],
-                                           r["rois"], r["class_ids"],
-                                           r["scores"])
-        results.extend(image_results)
+        image_boxes = r["rois"]
+        image_labels = r["class_ids"]
+        image_scores = r["scores"]
 
-    # Load results. This modifies results with additional attributes.
-    coco_results = coco.loadRes(results)
+        if save_path is not None:
+            image = dataset.load_image(image_id)
+            visualize.save_instances(image, r['rois'], gt_bbox, r['class_ids'], gt_class_id, dataset.class_names,
+                                     r['scores'], ax=None, path=os.path.join(save_path, "{}.jpg".format(i)),
+                                     show_mask=False)
 
-    # # Evaluate - @todo: TBD
-    # cocoEval = COCOeval(coco, coco_results, eval_type)
-    # cocoEval.params.imgIds = coco_image_ids
-    # cocoEval.evaluate()
-    # cocoEval.accumulate()
-    # cocoEval.summarize()
+        # select detections - [[num_boxes, y1, x1, y2, x2, score, class_id]]
+        image_detections = np.concatenate(
+            [image_boxes, np.expand_dims(image_scores, axis=1), np.expand_dims(image_labels, axis=1)], axis=1)
 
-    print("Prediction time: {}. Average {}/image".format(
-        t_prediction, t_prediction / len(image_ids)))
+        # load the annotations - [[num_boxes, y1, x1, y2, x2, class_id]]
+        annotations = np.concatenate([gt_bbox, np.expand_dims(gt_class_id, axis=1)], axis=1)
+
+        # copy detections to all_detections
+        for label in range(dataset.num_labels()):
+            all_detections[i][label] = image_detections[image_detections[:, -1] == label, :-1]
+
+        # copy detections to all_annotations
+        for label in range(dataset.num_labels()):
+            all_annotations[i][label] = annotations[annotations[:, 4] == label, :4].copy()
+
+        print('{}/{}'.format(i + 1, dataset.size()))
+
+    print("Prediction time: {}. Average {}/image".format(t_prediction, t_prediction / len(image_ids)))
     print("Total time: ", time.time() - t_start)
+    return all_detections, all_annotations
+
+
+def evaluate(
+        dataset,
+        model,
+        iou_threshold=0.5,
+        save_path=None,
+        config=None):
+    """
+    Evaluate a given dataset using a given model.
+
+    # Arguments
+        dataset       : The dataset that represents the dataset to evaluate.
+        model           : The model to evaluate.
+        iou_threshold   : The threshold used to consider when a detection is positive or negative.
+        score_threshold : The score confidence threshold to use for detections.
+        max_detections  : The maximum number of detections to use per image.
+        save_path       : The path to save images with visualized detections to.
+    # Returns
+        A dict mapping class names to mAP scores.
+    """
+    # gather all detections and annotations
+    all_detections, all_annotations = _get_detections_annotations(dataset, model, save_path=save_path, config=config)
+    average_precisions = {}
+
+    # process detections and annotations
+    for label in range(dataset.num_labels()):
+        false_positives = np.zeros((0,))
+        true_positives = np.zeros((0,))
+        scores = np.zeros((0,))
+        num_annotations = 0.0
+
+        for i in range(dataset.size()):
+            detections = all_detections[i][label]
+            annotations = all_annotations[i][label]
+            num_annotations += annotations.shape[0]
+            detected_annotations = []
+
+            for d in detections:
+                scores = np.append(scores, d[4])
+
+                if annotations.shape[0] == 0:
+                    false_positives = np.append(false_positives, 1)
+                    true_positives = np.append(true_positives, 0)
+                    continue
+
+                overlaps = compute_overlap(np.expand_dims(d, axis=0), annotations)
+                assigned_annotation = np.argmax(overlaps, axis=1)
+                max_overlap = overlaps[0, assigned_annotation]
+
+                if max_overlap >= iou_threshold and assigned_annotation not in detected_annotations:
+                    false_positives = np.append(false_positives, 0)
+                    true_positives = np.append(true_positives, 1)
+                    detected_annotations.append(assigned_annotation)
+                else:
+                    false_positives = np.append(false_positives, 1)
+                    true_positives = np.append(true_positives, 0)
+
+        # no annotations -> AP for this class is 0 (is this correct?)
+        if num_annotations == 0:
+            average_precisions[label] = 0
+            continue
+
+        # sort by score
+        indices = np.argsort(-scores)
+        false_positives = false_positives[indices]
+        true_positives = true_positives[indices]
+
+        # compute false positives and true positives
+        false_positives = np.cumsum(false_positives)
+        true_positives = np.cumsum(true_positives)
+
+        # compute recall and precision
+        recall = true_positives / num_annotations
+        precision = true_positives / np.maximum(true_positives + false_positives, np.finfo(np.float64).eps)
+
+        # compute average precision
+        average_precision = _compute_ap(recall, precision)
+        average_precisions[label] = average_precision
+
+    return average_precisions

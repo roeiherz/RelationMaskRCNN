@@ -29,6 +29,8 @@ from mrcnn import utils
 # Requires TensorFlow 1.3+ and Keras 2.0.8+.
 from distutils.version import LooseVersion
 
+from mrcnn.callbacks import Evaluate, RedirectModel
+
 assert LooseVersion(tf.__version__) >= LooseVersion("1.3")
 assert LooseVersion(keras.__version__) >= LooseVersion('2.0.8')
 
@@ -2184,7 +2186,7 @@ class MaskRCNN():
             "*epoch*", "{epoch:04d}")
 
     def train(self, train_dataset, val_dataset, learning_rate, epochs, layers,
-              augmentation=None, workers_nb=0, queue_size=100):
+              augmentation=None, workers_nb=0, queue_size=100, prediction_model=None):
         """Train the model.
         train_dataset, val_dataset: Training and validation Dataset objects.
         learning_rate: The learning rate to train with
@@ -2236,12 +2238,16 @@ class MaskRCNN():
                                        batch_size=self.config.BATCH_SIZE)
 
         # Callbacks
-        callbacks = [
-            keras.callbacks.TensorBoard(log_dir=self.log_dir,
-                                        histogram_freq=0, write_graph=True, write_images=False),
-            keras.callbacks.ModelCheckpoint(self.checkpoint_path,
-                                            verbose=0, save_weights_only=True),
-        ]
+        tensorboard_callback = keras.callbacks.TensorBoard(log_dir=self.log_dir,
+                                                           histogram_freq=0, write_graph=True, write_images=False)
+        modelcheckpoint_callback = keras.callbacks.ModelCheckpoint(self.checkpoint_path,
+                                                                   verbose=0, save_weights_only=True)
+        callbacks = [tensorboard_callback, modelcheckpoint_callback]
+
+        if prediction_model is not None:
+            evaluation_callback = Evaluate(val_dataset, tensorboard=tensorboard_callback, config=self.config)
+            evaluation_callback = RedirectModel(evaluation_callback, prediction_model)
+            callbacks.append(evaluation_callback)
 
         # Train
         log("\nStarting at epoch {}. LR={}\n".format(self.epoch, learning_rate))
