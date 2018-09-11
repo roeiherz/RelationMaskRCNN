@@ -113,6 +113,7 @@ if __name__ == '__main__':
         IMAGES_PER_GPU = 1
         DETECTION_MIN_CONFIDENCE = 0
         POST_NMS_ROIS_INFERENCE = 100
+        BACKBONE = "resnet101"
 
 
     config = InferenceConfig()
