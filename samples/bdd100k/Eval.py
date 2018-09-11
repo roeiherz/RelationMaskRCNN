@@ -113,7 +113,7 @@ if __name__ == '__main__':
         IMAGES_PER_GPU = 1
         DETECTION_MIN_CONFIDENCE = 0
         POST_NMS_ROIS_INFERENCE = 100
-        BACKBONE = "resnet101"
+        BACKBONE = "resnet50"
 
 
     config = InferenceConfig()
@@ -144,5 +144,5 @@ if __name__ == '__main__':
     dataset.load_bdd100k(args.dataset_dir, "val")
     dataset.prepare()
 
-    print("Running BDD100K evaluation on {} images.".format(args.limit))
+    print("Running BDD100K evaluation on {} images.".format(dataset.size()))
     evaluate_bdd(model, dataset, config, save_path=args.save_path)

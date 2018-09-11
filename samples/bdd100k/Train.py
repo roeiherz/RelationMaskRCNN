@@ -122,7 +122,7 @@ if __name__ == '__main__':
     print("Fine tune all layers")
     model.train(dataset_train, dataset_val,
                 learning_rate=config.LEARNING_RATE / 10,
-                epochs=160,
+                epochs=200,
                 layers='all',
                 augmentation=augmentation,
                 workers_nb=config.WORKERS_NB,
