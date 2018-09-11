@@ -65,6 +65,10 @@ if __name__ == '__main__':
                         default="nexar",
                         metavar="/path/to/weights.h5",
                         help="Path to weights .h5 file or 'coco'")
+    parser.add_argument('--save_path',
+                        default="nexar",
+                        metavar="/path/to/output_images",
+                        help="Save images in path'")
     parser.add_argument('--logs', required=False,
                         default=DEFAULT_LOGS_DIR,
                         metavar="/path/to/logs/",
@@ -89,6 +93,7 @@ if __name__ == '__main__':
     print("Logs: ", args.logs)
     print("GPU: ", args.gpu)
     print("Number of Workers: ", args.workers)
+    print("Save Path: ", args.save_path)
 
     # Define GPU training
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)

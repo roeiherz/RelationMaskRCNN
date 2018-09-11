@@ -53,6 +53,10 @@ if __name__ == '__main__':
                         default="nexar",
                         metavar="/path/to/weights.h5",
                         help="Path to weights .h5 file or 'coco'")
+    parser.add_argument('--save_path',
+                        default="nexar",
+                        metavar="/path/to/output_images",
+                        help="Save images in path'")
     parser.add_argument('--logs', required=False,
                         default=DEFAULT_LOGS_DIR,
                         metavar="/path/to/logs/",
@@ -77,7 +81,7 @@ if __name__ == '__main__':
     print("Logs: ", args.logs)
     print("GPU: ", args.gpu)
     print("Number of Workers: ", args.workers)
-
+    print("Save Path: ", args.save_path)
 
     # Define GPU training
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
@@ -88,7 +92,10 @@ if __name__ == '__main__':
         # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180831T1657/mask_rcnn_bdd100k_0029.h5"
         # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180831T1657/mask_rcnn_bdd100k_0042.h5"
         # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180831T1657/mask_rcnn_bdd100k_0114.h5"
-        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180902T1624/mask_rcnn_bdd100k_0038.h5"
+        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180902T1624/mask_rcnn_bdd100k_0038.h5"
+        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180902T1624/mask_rcnn_bdd100k_0160.h5"
+        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180902T1624/mask_rcnn_bdd100k_0160.h5"
+        args.save_path = "/Users/roeiherzig/RelationMaskRCNN/samples/bdd100k/7_160_resnet101.jpg"
 
     # Configurations
     class InferenceConfig(BDD100KConfig):
@@ -132,11 +139,11 @@ if __name__ == '__main__':
 
     # Testing dataset
     dataset = BDD100KDataset()
-    dataset.load_bdd100k(args.dataset_dir, "val_tmp")
+    dataset.load_bdd100k(args.dataset_dir, "val", load_images_flag=False)
     dataset.prepare()
 
     # image_id = random.choice(dataset.image_ids)
-    image_id = 7
+    image_id = 1536
     image, _, gt_class_id, gt_bbox = modellib.load_image_gt(dataset, config, image_id)
     info = dataset.image_info[image_id]
     print("image ID: {}.{} ({}) {}".format(info["source"], info["id"], image_id,
@@ -147,9 +154,9 @@ if __name__ == '__main__':
     # Display results
     ax = get_ax(1)
     r = results[0]
-    save_path = "{}_new_weights".format(image_id)
     image = dataset.load_image(image_id)
     visualize.save_instances(image, r['rois'], gt_bbox, r['class_ids'], gt_class_id, dataset.class_names, r['scores'],
-                             ax=ax, title="Predictions_{}".format(info["id"]), path=save_path, show_mask=False)
+                             ax=ax, title="Predictions_{}".format(info["id"]), path=args.save_path,
+                             show_mask=False)
     print("gt_class_id", gt_class_id)
     print("gt_bbox", gt_bbox)

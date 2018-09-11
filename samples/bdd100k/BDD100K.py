@@ -172,7 +172,7 @@ def _read_classes(csv_reader):
     return result
 
 
-def _read_annotations(csv_reader, classes, start_dir_path):
+def _read_annotations(csv_reader, classes, start_dir_path, load_images_flag=True):
     """
     Read annotations from the csv_reader.
     """
@@ -184,11 +184,13 @@ def _read_annotations(csv_reader, classes, start_dir_path):
             img_file, x1, y1, x2, y2, class_name = row[:6]
             # Append root path
             img_file = os.path.join(start_dir_path, img_file)
-            img = cv2.imread(img_file)
-            if img is None:
-                print("Image file {} is not existing".format(img_file))
-                continue
-            height, width, channels = img.shape
+            height, width = -1, -1
+            if load_images_flag:
+                img = cv2.imread(img_file)
+                if img is None:
+                    print("Image file {} is not existing".format(img_file))
+                    continue
+                height, width, channels = img.shape
         except ValueError:
             raise_from(ValueError(
                 'line {}: format should be \'img_file,x1,y1,x2,y2,class_name\' or \'img_file,,,,,\''.format(line)),
@@ -225,10 +227,11 @@ def _read_annotations(csv_reader, classes, start_dir_path):
 
 class BDD100KDataset(utils.Dataset):
 
-    def load_bdd100k(self, dataset_dir, subset):
+    def load_bdd100k(self, dataset_dir, subset, load_images_flag=True):
         """Load a subset of the COCO dataset.
         dataset_dir: The root directory of the BDD100K dataset.
         subset: What to load - train, val
+        load_images_flag: Load images before read_annotations flag
         """
 
         # Class mapping
@@ -251,7 +254,8 @@ class BDD100KDataset(utils.Dataset):
             # Csv with img_file, distance, lane, lane_label
             with _open_for_csv(imgs_csv) as file:
                 images_data = _read_annotations(csv.reader(file, delimiter=','), class_ids,
-                                                start_dir_path=dataset_dir[:dataset_dir.find("BDD")])
+                                                start_dir_path=dataset_dir[:dataset_dir.find("BDD")],
+                                                load_images_flag=load_images_flag)
 
             # Add images
             for index, img_path in enumerate(images_data):
