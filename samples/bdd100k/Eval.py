@@ -3,11 +3,9 @@ import sys
 # import imgaug  # https://github.com/aleju/imgaug (pip3 install imgaug)
 
 # Import Mask RCNN
-from samples.bdd100k.BDD100K import BDD100KDataset, BDD100KConfig, evaluate
-
 ROOT_DIR = os.path.abspath("../../")
 sys.path.append(ROOT_DIR)  # To find local version of the library
-
+from samples.bdd100k.BDD100K import BDD100KDataset, BDD100KConfig, evaluate
 # Root directory of the project
 from Utils import create_folder
 from mrcnn import model as modellib
