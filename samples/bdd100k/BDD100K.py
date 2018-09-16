@@ -71,7 +71,7 @@ class BDD100KConfig(Config):
     BACKBONE = "resnet50"
 
     # Run eval of map at each end of epoch
-    EVAL_MAP_IN_TRAINING = True
+    EVAL_MAP_IN_TRAINING = False
 
     # We use a GPU with 12GB memory, which can fit two images.
     # Adjust down if you use a smaller GPU.

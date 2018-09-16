@@ -8,7 +8,6 @@ ROOT_DIR = os.path.abspath("../../")
 sys.path.append(ROOT_DIR)  # To find local version of the library
 
 # Root directory of the project
-from Utils import create_folder
 from samples.coco.coco import CocoConfig, CocoDataset, evaluate_coco
 from mrcnn import model as modellib
 import argparse

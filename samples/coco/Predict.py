@@ -9,7 +9,6 @@ ROOT_DIR = os.path.abspath("../../")
 sys.path.append(ROOT_DIR)  # To find local version of the library
 
 # Root directory of the project
-from Utils import create_folder
 from samples.coco.coco import CocoConfig, CocoDataset, evaluate_coco
 from mrcnn import model as modellib
 import argparse
@@ -149,4 +148,3 @@ if __name__ == '__main__':
                              ax=ax, title="Predictions_{}".format(info["id"]), path=save_path, show_mask=False)
     print("gt_class_id", gt_class_id)
     print("gt_bbox", gt_bbox)
-    print("gt_mask", gt_mask)

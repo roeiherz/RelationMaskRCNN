@@ -11,11 +11,8 @@ ROOT_DIR = os.path.abspath("../../")
 sys.path.append(ROOT_DIR)  # To find local version of the library
 
 # Root directory of the project
-from Utils import create_folder
-from samples.coco.coco import CocoConfig, CocoDataset
 from mrcnn import model as modellib
 import argparse
-from mrcnn import utils
 from mrcnn import visualize
 
 # Path to trained weights file
