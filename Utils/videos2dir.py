@@ -80,7 +80,7 @@ if __name__ == "__main__":
 
                 create_folder(out_dir)
                 print('{} --> {}'.format(video_path, out_dir))
-                video_to_frames(in_dir, out_dir, jump=True)
+                video_to_frames(in_dir, out_dir, fps=5)
 
         except Exception as e:
             print("Error in incident {} with {}".format(base_name, str(e)))
