@@ -56,18 +56,27 @@ def rotate_bound(image, angle):
     return cv2.warpAffine(image, M, (nW, nH))
 
 
-def video_to_frames(input_video, out_dir, refinment=1, jump=False):
+def video_to_frames(input_video, out_dir, refinment=1, fps=1):
+    """
+
+    :param input_video: path for input video
+    :param out_dir: output path directory
+    :param refinment:
+    :param fps:
+            1: default fps
+            -1: automatic default depends differently per video
+            any other integer
+    :return:
+    """
     video = av.open(input_video.encode("utf8"))
     rotation = int(video.streams[0].metadata.get('rotate', 0))
     vidcap = cv2.VideoCapture(input_video)
 
-    # Jump using fps
-    if jump:
+    # Jump using the fps inputs
+    if fps == -1:
         duration = float(video.streams[0].duration * video.streams[0].time_base)
         frames = video.streams[0].frames
         fps = int(round(frames / duration))
-    else:
-        fps = 1
 
     count = 0
     image_files = []
@@ -108,13 +117,13 @@ def download_incidents(input_file="", output_dir=""):
             if ind == 0:
                 continue
 
-            pb_link = row[0]
-            ind = pb_link.find(".com")
+            pb_link = row[-1]
 
-            # pb_link = "{}/{}".format("nexar-upload", pb_link[ind + 5:])
-            pb_link = pb_link[ind + 5:]
+            # Skip if its not a download link
+            if 's3' not in pb_link:
+                continue
+
             # s3://nexar-upload/user/25da72a103f16be86fb50c1d457a3d87/ride/d4576d10bb0b58432f094bd24602411b/artifacts/incident-2319d2801dff97e4bb2dbda2c4f37fae.mp4
-
             pb_links.append(pb_link)
 
     download_from_s3('nexar-upload', pb_links, output_dir)
