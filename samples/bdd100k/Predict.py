@@ -37,6 +37,22 @@ def get_ax(rows=1, cols=1, size=16):
     return ax
 
 
+def get_ids_from_uuids(dataset, uuids):
+    """
+    This function get uuids and returns the ids
+    :param dataset: dataset
+    :param uuids: uuids from bdd100k
+    :return:
+    """
+    ids = []
+    i = 0
+    for img in dataset.image_info:
+        if img['id'] in uuids:
+            ids.append(i)
+        i += 1
+    return ids
+
+
 if __name__ == '__main__':
 
     # Parse command line arguments
@@ -92,7 +108,8 @@ if __name__ == '__main__':
         # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180902T1624/mask_rcnn_bdd100k_0038.h5"
         args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180902T1624/mask_rcnn_bdd100k_0160.h5"
         args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180902T1624/mask_rcnn_bdd100k_0160.h5"
-        args.save_path = "/Users/roeiherzig/RelationMaskRCNN/samples/bdd100k/7_160_resnet101.jpg"
+        # args.save_path = "/Users/roeiherzig/RelationMaskRCNN/samples/bdd100k/7_160_resnet101.jpg"
+        args.save_path = "/Users/roeiherzig/RelationMaskRCNN/samples/bdd100k"
 
     # Configurations
     class InferenceConfig(BDD100KConfig):
@@ -139,21 +156,27 @@ if __name__ == '__main__':
     dataset.load_bdd100k(args.dataset_dir, "val", load_images_flag=False)
     dataset.prepare()
 
-    # image_id = random.choice(dataset.image_ids)
-    image_id = 1536
-    image, _, gt_class_id, gt_bbox = modellib.load_image_gt(dataset, config, image_id)
-    info = dataset.image_info[image_id]
-    print("image ID: {}.{} ({}) {}".format(info["source"], info["id"], image_id,
-                                           dataset.image_reference(image_id)))
-    # Run object detection
-    results = model.detect([image], verbose=1)
+    uuids = ["c1f8d9b3-81ee1c2d", "b2db41a2-721e0f4e", "b222c329-5dc8dbf7", "bb8e2033-6c418fc7", "c0625a26-cefa81e9",
+             "b6d0b9d1-d643d86a", "c18feebb-3e10acea"]
+    ids = get_ids_from_uuids(dataset, uuids)
+    # ids = [random.choice(dataset.image_ids)]
+    # ids = [1536]
 
-    # Display results
-    ax = get_ax(1)
-    r = results[0]
-    image = dataset.load_image(image_id)
-    visualize.save_instances(image, r['rois'], gt_bbox, r['class_ids'], gt_class_id, dataset.class_names, r['scores'],
-                             ax=ax, title="Predictions_{}".format(info["id"]), path=args.save_path,
-                             show_mask=False)
-    print("gt_class_id", gt_class_id)
-    print("gt_bbox", gt_bbox)
+    for image_id in ids:
+        image, _, gt_class_id, gt_bbox = modellib.load_image_gt(dataset, config, image_id)
+        info = dataset.image_info[image_id]
+        print("image ID: {}.{} ({}) {}".format(info["source"], info["id"], image_id,
+                                               dataset.image_reference(image_id)))
+        # Run object detection
+        results = model.detect([image], verbose=1)
+
+        # Display results
+        ax = get_ax(1)
+        r = results[0]
+        image = dataset.load_image(image_id)
+        visualize.save_instances(image, r['rois'], gt_bbox, r['class_ids'], gt_class_id, dataset.class_names, r['scores'],
+                                 ax=ax, title="Predictions_{}".format(info["id"]),
+                                 path="{}/{}.jpg".format(args.save_path, info["id"]),
+                                 show_mask=False)
+        print("gt_class_id", gt_class_id)
+        print("gt_bbox", gt_bbox)

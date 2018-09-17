@@ -47,7 +47,7 @@ if __name__ == "__main__":
     # Download Incidents
     if args.download:
         download_incidents(input_file=args.index, output_dir=args.video)
-    exit()
+
     # Check directory exists
     if not os.path.exists(args.video):
         print('Can not find videos directory: {}'.format(args.video))
