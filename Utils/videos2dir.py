@@ -2,7 +2,7 @@ import argparse
 import os
 import pandas as pd
 
-from Utils.utils import download_incidents, create_folder, video_to_frames
+from utils import download_incidents, create_folder, video_to_frames
 
 __author__ = 'roeiherz'
 
