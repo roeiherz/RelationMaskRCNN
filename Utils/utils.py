@@ -123,7 +123,10 @@ def download_incidents(input_file="", output_dir=""):
             if 's3' not in pb_link:
                 continue
 
-            # s3://nexar-upload/user/25da72a103f16be86fb50c1d457a3d87/ride/d4576d10bb0b58432f094bd24602411b/artifacts/incident-2319d2801dff97e4bb2dbda2c4f37fae.mp4
+            id = pb_link.find("nexar-upload")
+            pb_link = pb_link[id + 13:]
+            # s3://nexar-upload/ +
+            # user/25da72a103f16be86fb50c1d457a3d87/ride/d4576d10bb0b58432f094bd24602411b/artifacts/incident-2319d2801dff97e4bb2dbda2c4f37fae.mp4
             pb_links.append(pb_link)
 
     download_from_s3('nexar-upload', pb_links, output_dir)
