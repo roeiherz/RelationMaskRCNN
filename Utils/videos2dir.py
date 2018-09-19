@@ -9,6 +9,7 @@ VIDEO_PATH = "/data/Accidents1K/Videos"
 INDEX_PATH = "/data/Accidents1K/accident_index.csv"
 IMAGE_PATH = "/data/Accidents1K/Images"
 
+
 def get_video_links(index_path):
     """
     This function returns the data
@@ -41,7 +42,7 @@ if __name__ == "__main__":
         args.index = "/Users/roeiherzig/Datasets/Accidents/accident_index.csv"
         args.image = "/Users/roeiherzig/Datasets/Accidents/Images/"
         args.download = True
-      
+
     # Download Incidents
     if args.download:
         download_incidents(input_file=args.index, output_dir=args.input)

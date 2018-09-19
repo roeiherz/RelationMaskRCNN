@@ -1,5 +1,4 @@
 import csv
-import av
 import boto3
 import numpy as np
 import cv2
@@ -68,6 +67,7 @@ def video_to_frames(input_video, out_dir, refinment=1, fps=1):
             any other integer
     :return:
     """
+    import av
     video = av.open(input_video.encode("utf8"))
     rotation = int(video.streams[0].metadata.get('rotate', 0))
     vidcap = cv2.VideoCapture(input_video)

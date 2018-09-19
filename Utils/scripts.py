@@ -1,6 +1,3 @@
-import cv2
-
-import av
 import shutil
 from utils import download_incidents
 import os
@@ -58,7 +55,6 @@ def get_data_split(index_path):
 
 
 if __name__ == '__main__':
-    get_data_split(index_path=INDEX_FILE)
+    get_data_split(index_path="")
     exit()
-
     # download_nexar_data(input=os.path.join(INPUT_ROOT, "Find_Video S3 Path for Incident_2018_04_12.csv"), output=OUTPUT_ROOT)
