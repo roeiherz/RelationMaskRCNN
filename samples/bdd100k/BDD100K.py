@@ -88,6 +88,9 @@ class BDD100KConfig(Config):
     # Number of classes
     NUM_CLASSES = 11  # BDD100K 10 classes + 1 negative
 
+    # Relation Networks or no Relation Networks at all
+    GPI_TYPE = None
+
     # Train or not backbone weights
     TRAINABLE_BACKBONE = True
     TRAINABLE_FPN = True
@@ -118,7 +121,7 @@ class BDD100KConfig(Config):
     # See compose_image_meta() for details
     IMAGE_META_SIZE = 1 + 3 + 3 + 4 + 1 + NUM_CLASSES
 
-    STEPS_PER_EPOCH = 1
+    STEPS_PER_EPOCH = 1000
 
     # Number of epochs
     EPOCH = 200
