@@ -51,12 +51,18 @@ if __name__ == '__main__':
                         type=int)
     args = parser.parse_args()
 
+    # Configurations training
+    config = BDD100KConfig()
+    config.display()
+
     # Use Local params
     if args.local:
         args.dataset_dir = "/Users/roeiherzig/Datasets/BDD/bdd100k/"
         # args.model = "bdd100k"
         # Resnet50 model
         args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180902T1624/mask_rcnn_bdd100k_0038.h5"
+        config.QUEUE_SIZE = 10
+        config.WORKERS_NB = 0
 
     print("Model: ", args.model)
     print("Dataset dir: ", args.dataset_dir)
@@ -66,10 +72,6 @@ if __name__ == '__main__':
 
     # Define GPU training
     # os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
-
-    # Configurations training
-    config = BDD100KConfig()
-    config.display()
 
     # Create model
     model = modellib.MaskRCNN(mode="training", config=config, model_dir=args.logs)
