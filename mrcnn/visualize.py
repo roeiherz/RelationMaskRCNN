@@ -103,6 +103,13 @@ def save_instances(image, boxes, gt_boxes, class_ids, gt_class_id, class_names, 
     # Generate random colors
     colors = colors or random_colors(N)
 
+    # If no axis is passed, create one and automatically call show()
+    if not ax:
+        rows = 1
+        cols = 1
+        size = 16
+        _, ax = plt.subplots(rows, cols, figsize=(size * cols, size * rows))
+
     # Show area outside image boundaries.
     height, width = image.shape[:2]
     ax.set_ylim(height + 10, -10)

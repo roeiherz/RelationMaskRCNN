@@ -1,19 +1,14 @@
 import os
 import sys
 # import imgaug  # https://github.com/aleju/imgaug (pip3 install imgaug)
-import time
-import random
-import matplotlib.pyplot as plt
+
 # Import Mask RCNN
 ROOT_DIR = os.path.abspath("../../")
 sys.path.append(ROOT_DIR)  # To find local version of the library
-
+from samples.bdd100k.BDD100K import BDD100KDataset, BDD100KConfig, evaluate
 # Root directory of the project
-from samples.coco.coco import CocoConfig, CocoDataset, evaluate_coco
 from mrcnn import model as modellib
 import argparse
-from mrcnn import utils
-from mrcnn import visualize
 
 # Path to trained weights file
 MODEL_PATH = os.path.join(ROOT_DIR, 'weights')
@@ -22,34 +17,55 @@ MODEL_PATH = os.path.join(ROOT_DIR, 'weights')
 # through the command line argument --logs
 DEFAULT_LOGS_DIR = os.path.join(ROOT_DIR, "logs")
 DEFAULT_DATASET_YEAR = "2017"
+# Dataset path for the data
+DATASET_DIR = "/data/BDD/bdd100k/"
 
 
-def get_ax(rows=1, cols=1, size=16):
-    """Return a Matplotlib Axes array to be used in
-    all visualizations in the notebook. Provide a
-    central point to control graph sizes.
-    
-    Adjust the size attribute to control how big to render images
+def evaluate_bdd(model, dataset, config, iou_threshold=0.5, save_path=None):
     """
-    _, ax = plt.subplots(rows, cols, figsize=(size * cols, size * rows))
-    return ax
+    Evaluate a given dataset using a given model.
+
+    # Arguments
+        generator       : The generator that represents the dataset to evaluate.
+        iou_threshold   : The threshold used to consider when a detection is positive or negative.
+        score_threshold : The score confidence threshold to use for detections.
+        max_detections  : The maximum number of detections to use per image.
+        save_path       : The path to save images with visualized detections to.
+    """
+
+    # run evaluation
+    average_precisions = evaluate(
+        dataset,
+        model,
+        iou_threshold=iou_threshold,
+        save_path=save_path,
+        config=config
+    )
+
+    mean_ap = sum(average_precisions.values()) / len(average_precisions)
+
+    for label, average_precision in average_precisions.items():
+        print(dataset.class_names[label], '{:.4f}'.format(average_precision))
+    print('mAP: {:.4f}'.format(mean_ap))
 
 
 if __name__ == '__main__':
 
     # Parse command line arguments
-    parser = argparse.ArgumentParser(description='Train Mask R-CNN on MS COCO.')
-    parser.add_argument('--dataset', required=True,
-                        default='/specific/netapp5_2/gamir/DER-Roei/datasets/MSCoco',
+    parser = argparse.ArgumentParser(description='Eval Graph Detector on BDD.')
+    parser.add_argument('--local', help='local debug', action='store', default=False)
+    parser.add_argument('--dataset_dir',
+                        default=DATASET_DIR,
                         metavar="/path/to/coco/",
-                        help='Directory of the MS-COCO dataset')
-    parser.add_argument('--year', required=False,
-                        default=DEFAULT_DATASET_YEAR,
-                        metavar="<year>",
-                        help='Year of the MS-COCO dataset (2014 or 2017) (default=2014)')
-    parser.add_argument('--model', required=True,
+                        help='Directory of the Nexars Incidents dataset')
+    parser.add_argument('--model',
+                        default="nexar",
                         metavar="/path/to/weights.h5",
                         help="Path to weights .h5 file or 'coco'")
+    parser.add_argument('--save_path',
+                        default=None,
+                        metavar="/path/to/output_images",
+                        help="Save images in path'")
     parser.add_argument('--logs', required=False,
                         default=DEFAULT_LOGS_DIR,
                         metavar="/path/to/logs/",
@@ -58,11 +74,6 @@ if __name__ == '__main__':
                         default=500,
                         metavar="<image count>",
                         help='Images to use for evaluation (default=500)')
-    parser.add_argument('--download', required=False,
-                        default=False,
-                        metavar="<True|False>",
-                        help='Automatically download and unzip MS-COCO files (default=False)',
-                        type=bool)
     parser.add_argument('--gpu', required=False,
                         default=0,
                         metavar="0, 1, ...",
@@ -75,25 +86,33 @@ if __name__ == '__main__':
                         type=int)
     args = parser.parse_args()
     print("Model: ", args.model)
-    print("Dataset: ", args.dataset)
-    print("Year: ", args.year)
+    print("Dataset dir: ", args.dataset_dir)
     print("Logs: ", args.logs)
-    print("Auto Download: ", args.download)
     print("GPU: ", args.gpu)
     print("Number of Workers: ", args.workers)
+    print("Save Path: ", args.save_path)
 
     # Define GPU training
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
 
+    # Use Local params
+    if args.local:
+        args.dataset_dir = "/Users/roeiherzig/Datasets/BDD/bdd100k/"
+        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180831T1657/mask_rcnn_bdd100k_0029.h5"
+        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180831T1657/mask_rcnn_bdd100k_0042.h5"
+        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180831T1657/mask_rcnn_bdd100k_0114.h5"
+        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180902T1624/mask_rcnn_bdd100k_0038.h5"
+        args.save_path = "/Users/roeiherzig/RelationMaskRCNN/samples/bdd100k/"
 
     # Configurations
-    class InferenceConfig(CocoConfig):
+    class InferenceConfig(BDD100KConfig):
         # Set batch size to 1 since we'll be running inference on one image at a time.
         # Batch size = GPU_COUNT * IMAGES_PER_GPU
         GPU_COUNT = 1
         IMAGES_PER_GPU = 1
         DETECTION_MIN_CONFIDENCE = 0
-        POST_NMS_ROIS_INFERENCE = 50
+        POST_NMS_ROIS_INFERENCE = 100
+        BACKBONE = "resnet50"
 
 
     config = InferenceConfig()
@@ -119,32 +138,10 @@ if __name__ == '__main__':
     print("Loading weights ", model_path)
     model.load_weights(model_path, by_name=True)
 
-    # # Save in a new locations
-    # stmp = time.strftime("%c").replace(" ", "_")
-    # model_path = os.path.join(MODEL_PATH, stmp)
-    # create_folder(model_path)
-    # model_path = os.path.join(model_path, stmp, "mask_rcnn.h5")
-
     # Testing dataset
-    dataset = CocoDataset()
-    coco = dataset.load_coco(args.dataset, "val", year=args.year, return_coco=True, auto_download=args.download)
+    dataset = BDD100KDataset()
+    dataset.load_bdd100k(args.dataset_dir, "val")
     dataset.prepare()
 
-    # image_id = random.choice(dataset.image_ids)
-    image_id = 1473
-    image, image_meta, gt_class_id, gt_bbox = \
-        modellib.load_image_gt(dataset, config, image_id)
-    info = dataset.image_info[image_id]
-    print("image ID: {}.{} ({}) {}".format(info["source"], info["id"], image_id,
-                                           dataset.image_reference(image_id)))
-    # Run object detection
-    results = model.detect([image], verbose=1)
-
-    # Display results
-    ax = get_ax(1)
-    r = results[0]
-    save_path = "{}_new_weights".format(image_id)
-    visualize.save_instances(image, r['rois'], gt_bbox, r['class_ids'], gt_class_id, dataset.class_names, r['scores'],
-                             ax=ax, title="Predictions_{}".format(info["id"]), path=save_path, show_mask=False)
-    print("gt_class_id", gt_class_id)
-    print("gt_bbox", gt_bbox)
+    print("Running BDD100K evaluation on {} images.".format(dataset.size()))
+    evaluate_bdd(model, dataset, config, save_path=args.save_path)

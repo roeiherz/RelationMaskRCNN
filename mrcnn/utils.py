@@ -6,7 +6,8 @@ Copyright (c) 2017 Matterport, Inc.
 Licensed under the MIT License (see LICENSE for details)
 Written by Waleed Abdulla
 """
-
+from __future__ import print_function
+import cv2
 import sys
 import os
 import math
@@ -402,6 +403,20 @@ class Dataset(object):
         class_ids = np.empty([0], np.int32)
         return mask, class_ids
 
+    def size(self):
+        """
+        This function return the size of examples in the data set
+        :return:
+        """
+        return self.num_images
+
+    def num_labels(self):
+        """
+        This function return the number of classes in the data set
+        :return:
+        """
+        return self.num_classes
+
 
 def resize_image(image, min_dim=None, max_dim=None, min_scale=None, mode="square"):
     """Resizes an image keeping the aspect ratio unchanged.
@@ -450,7 +465,7 @@ def resize_image(image, min_dim=None, max_dim=None, min_scale=None, mode="square
     # Scale?
     if min_dim:
         # Scale up but not down
-        scale = max(1, min_dim / min(h, w))
+        scale = max(1, float(min_dim) / min(h, w))
     if min_scale and scale < min_scale:
         scale = min_scale
 
@@ -458,13 +473,12 @@ def resize_image(image, min_dim=None, max_dim=None, min_scale=None, mode="square
     if max_dim and mode == "square":
         image_max = max(h, w)
         if round(image_max * scale) > max_dim:
-            scale = max_dim / image_max
+            scale = max_dim / float(image_max)
 
     # Resize image using bilinear interpolation
     if scale != 1:
         image = skimage.transform.resize(
-            image, (round(h * scale), round(w * scale)),
-            order=1, mode="constant", preserve_range=True)
+            image, (round(h * scale), round(w * scale)), order=1, mode="constant", preserve_range=True)
 
     # Need padding or cropping?
     if mode == "square":
@@ -965,3 +979,76 @@ def get_union_boxes(boxes):
     new_y2_max = tf.gather(y2_max, indices)
     new_boxes = np.concatenate([new_y1_min, new_x1_min, new_y2_max, new_x1_max], axis=0)
     return new_boxes
+
+
+"""
+Copyright 2017-2018 Fizyr (https://fizyr.com)
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+"""
+
+
+def _compute_ap(recall, precision):
+    """ Compute the average precision, given the recall and precision curves.
+
+    Code originally from https://github.com/rbgirshick/py-faster-rcnn.
+
+    # Arguments
+        recall:    The recall curve (list).
+        precision: The precision curve (list).
+    # Returns
+        The average precision as computed in py-faster-rcnn.
+    """
+    # correct AP calculation
+    # first append sentinel values at the end
+    mrec = np.concatenate(([0.], recall, [1.]))
+    mpre = np.concatenate(([0.], precision, [0.]))
+
+    # compute the precision envelope
+    for i in range(mpre.size - 1, 0, -1):
+        mpre[i - 1] = np.maximum(mpre[i - 1], mpre[i])
+
+    # to calculate area under PR curve, look for points
+    # where X axis (recall) changes value
+    i = np.where(mrec[1:] != mrec[:-1])[0]
+
+    # and sum (\Delta recall) * prec
+    ap = np.sum((mrec[i + 1] - mrec[i]) * mpre[i + 1])
+    return ap
+
+
+def compute_overlap(a, b):
+    """
+    Args
+
+        a: (N, 4) ndarray of float
+        b: (K, 4) ndarray of float
+
+    Returns
+        overlaps: (N, K) ndarray of overlap between boxes and query_boxes
+    """
+    area = (b[:, 2] - b[:, 0]) * (b[:, 3] - b[:, 1])
+
+    ih = np.minimum(np.expand_dims(a[:, 2], axis=1), b[:, 2]) - np.maximum(np.expand_dims(a[:, 0], 1), b[:, 0])
+    iw = np.minimum(np.expand_dims(a[:, 3], axis=1), b[:, 3]) - np.maximum(np.expand_dims(a[:, 1], 1), b[:, 1])
+
+    iw = np.maximum(iw, 0)
+    ih = np.maximum(ih, 0)
+
+    ua = np.expand_dims((a[:, 2] - a[:, 0]) * (a[:, 3] - a[:, 1]), axis=1) + area - iw * ih
+
+    ua = np.maximum(ua, np.finfo(float).eps)
+
+    intersection = iw * ih
+
+    return intersection / ua
