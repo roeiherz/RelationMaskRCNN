@@ -8,8 +8,10 @@ ROOT_DIR = os.path.abspath("../../")
 sys.path.append(ROOT_DIR)  # To find local version of the library
 
 # Root directory of the project
-from samples.coco.coco import CocoConfig, CocoDataset, evaluate_coco
+from samples.coco.coco import CocoConfig, CocoDataset
 from mrcnn import model as modellib
+import argparse
+
 
 # Path to trained weights file
 MODEL_PATH = os.path.join(ROOT_DIR, 'weights')
@@ -20,13 +22,9 @@ DEFAULT_LOGS_DIR = os.path.join(ROOT_DIR, "logs")
 DEFAULT_DATASET_YEAR = "2017"
 
 if __name__ == '__main__':
-    import argparse
 
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='Train Mask R-CNN on MS COCO.')
-    parser.add_argument("command",
-                        metavar="<command>",
-                        help="'train' or 'evaluate' on MS COCO")
     parser.add_argument('--dataset', required=True,
                         default='/specific/netapp5_2/gamir/DER-Roei/datasets/MSCoco',
                         metavar="/path/to/coco/",
@@ -62,7 +60,6 @@ if __name__ == '__main__':
                         help='Number of workers',
                         type=int)
     args = parser.parse_args()
-    print("Command: ", args.command)
     print("Model: ", args.model)
     print("Dataset: ", args.dataset)
     print("Year: ", args.year)
@@ -74,28 +71,12 @@ if __name__ == '__main__':
     # Define GPU training
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
 
-    # Configurations
-    if args.command == "train":
-        config = CocoConfig()
-    else:
-        class InferenceConfig(CocoConfig):
-            # Set batch size to 1 since we'll be running inference on
-            # one image at a time. Batch size = GPU_COUNT * IMAGES_PER_GPU
-            GPU_COUNT = 1
-            IMAGES_PER_GPU = 1
-            DETECTION_MIN_CONFIDENCE = 0
-
-
-        config = InferenceConfig()
+    # Configurations training
+    config = CocoConfig()
     config.display()
 
     # Create model
-    if args.command == "train":
-        model = modellib.MaskRCNN(mode="training", config=config,
-                                  model_dir=args.logs)
-    else:
-        model = modellib.MaskRCNN(mode="inference", config=config,
-                                  model_dir=args.logs)
+    model = modellib.MaskRCNN(mode="training", config=config, model_dir=args.logs)
 
     # Select weights file to load
     if args.model.lower() == "coco":
@@ -119,40 +100,29 @@ if __name__ == '__main__':
     # create_folder(model_path)
     # model_path = os.path.join(model_path, stmp, "mask_rcnn.h5")
 
-    # Train or evaluate
-    if args.command == "train":
-        # Training dataset. Use the training set and 35K from the validation set, as as in the Mask RCNN paper.
-        dataset_train = CocoDataset()
-        dataset_train.load_coco(args.dataset, "train", year=args.year, auto_download=args.download)
-        # dataset_train.load_coco(args.dataset, "valminusminival", year=args.year, auto_download=args.download)
-        dataset_train.prepare()
+    # Training dataset. Use the training set and 35K from the validation set, as as in the Mask RCNN paper.
+    dataset_train = CocoDataset()
+    dataset_train.load_coco(args.dataset, "train", year=args.year, auto_download=args.download)
+    # dataset_train.load_coco(args.dataset, "valminusminival", year=args.year, auto_download=args.download)
+    dataset_train.prepare()
 
-        # Validation dataset
-        dataset_val = CocoDataset()
-        dataset_val.load_coco(args.dataset, "val", year=args.year, auto_download=args.download)
-        dataset_val.prepare()
+    # Validation dataset
+    dataset_val = CocoDataset()
+    dataset_val.load_coco(args.dataset, "val", year=args.year, auto_download=args.download)
+    dataset_val.prepare()
 
-        # Image Augmentation
-        # Right/Left flip 50% of the time
-        # augmentation = imgaug.augmenters.Fliplr(0.5)
-        augmentation = None
+    # Image Augmentation
+    # Right/Left flip 50% of the time
+    # augmentation = imgaug.augmenters.Fliplr(0.5)
+    augmentation = None
 
-        # Training - Fine tune all layers
-        print("Fine tune all layers")
-        model.train(dataset_train, dataset_val,
-                    learning_rate=config.LEARNING_RATE / 10,
-                    epochs=160,
-                    layers='all',
-                    augmentation=augmentation)
+    # Training - Fine tune all layers
+    print("Fine tune all layers")
+    model.train(dataset_train, dataset_val,
+                learning_rate=config.LEARNING_RATE / 10,
+                epochs=320,
+                layers='all',
+                augmentation=augmentation,
+                workers_nb=config.WORKERS_NB,
+                queue_size=config.QUEUE_SIZE)
 
-    elif args.command == "evaluate":
-        # Validation dataset
-        dataset_val = CocoDataset()
-        coco = dataset_val.load_coco(args.dataset, "val", year=args.year, return_coco=True,
-                                     auto_download=args.download)
-        dataset_val.prepare()
-        print("Running COCO evaluation on {} images.".format(args.limit))
-        evaluate_coco(model, dataset_val, coco, "bbox", limit=int(args.limit))
-    else:
-        print("'{}' is not recognized. "
-              "Use 'train' or 'evaluate'".format(args.command))
