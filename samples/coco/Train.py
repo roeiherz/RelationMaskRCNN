@@ -25,7 +25,8 @@ if __name__ == '__main__':
 
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='Train Mask R-CNN on MS COCO.')
-    parser.add_argument('--dataset', required=True,
+    parser.add_argument('--local', help='input directory of videos', action='store', default=False)
+    parser.add_argument('--dataset', required=False,
                         default='/specific/netapp5_2/gamir/DER-Roei/datasets/MSCoco',
                         metavar="/path/to/coco/",
                         help='Directory of the MS-COCO dataset')
@@ -33,7 +34,8 @@ if __name__ == '__main__':
                         default=DEFAULT_DATASET_YEAR,
                         metavar="<year>",
                         help='Year of the MS-COCO dataset (2014 or 2017) (default=2014)')
-    parser.add_argument('--model', required=True,
+    parser.add_argument('--model', required=False,
+                        default="coco",
                         metavar="/path/to/weights.h5",
                         help="Path to weights .h5 file or 'coco'")
     parser.add_argument('--logs', required=False,
@@ -55,11 +57,17 @@ if __name__ == '__main__':
                         help='GPU number ro run',
                         type=int)
     parser.add_argument('--workers', required=False,
-                        default=0,
+                        default=5,
+                        metavar="0, 1, ...",
+                        help='Number of workers',
+                        type=int)
+    parser.add_argument('--queue_size', required=False,
+                        default=200,
                         metavar="0, 1, ...",
                         help='Number of workers',
                         type=int)
     args = parser.parse_args()
+
     print("Model: ", args.model)
     print("Dataset: ", args.dataset)
     print("Year: ", args.year)
@@ -67,9 +75,17 @@ if __name__ == '__main__':
     print("Auto Download: ", args.download)
     print("GPU: ", args.gpu)
     print("Number of Workers: ", args.workers)
+    print("Number of Queue Size: ", args.queue_size)
 
-    # Define GPU training
-    os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
+    # # Define GPU training
+    # os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
+
+    # Use Local params
+    if args.local:
+        args.dataset = "/Users/roeiherzig/Datasets/MSCoco"
+        args.model = "coco"
+        args.workers = 0
+        args.queue_size = 10
 
     # Configurations training
     config = CocoConfig()
@@ -120,9 +136,9 @@ if __name__ == '__main__':
     print("Fine tune all layers")
     model.train(dataset_train, dataset_val,
                 learning_rate=config.LEARNING_RATE / 10,
-                epochs=320,
+                epochs=160,
                 layers='all',
                 augmentation=augmentation,
-                workers_nb=config.WORKERS_NB,
-                queue_size=config.QUEUE_SIZE)
+                workers_nb=args.workers,
+                queue_size=args.queue_size)
 

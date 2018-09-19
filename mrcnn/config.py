@@ -51,11 +51,6 @@ class Config(object):
     # down the training.
     VALIDATION_STEPS = 50
 
-    # Number of workers
-    WORKERS_NB = 5
-    # QUEUE Size
-    QUEUE_SIZE = 200
-
     # Backbone network architecture
     # Supported values are: resnet50, resnet101.
     # You can also provide a callable that should have the signature

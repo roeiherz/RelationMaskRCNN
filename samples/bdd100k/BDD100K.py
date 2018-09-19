@@ -80,11 +80,6 @@ class BDD100KConfig(Config):
     # Uncomment to train on 8 GPUs (default is 1)
     # GPU_COUNT = 8
 
-    # Number of workers
-    WORKERS_NB = 5
-    # QUEUE Size
-    QUEUE_SIZE = 100
-
     # Number of classes
     NUM_CLASSES = 11  # BDD100K 10 classes + 1 negative
 
