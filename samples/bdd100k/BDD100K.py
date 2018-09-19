@@ -68,7 +68,7 @@ class BDD100KConfig(Config):
     """
     # Give the configuration a recognizable name
     NAME = "bdd100k"
-    BACKBONE = "resnet50"
+    BACKBONE = "resnet101"
 
     # Run eval of map at each end of epoch
     EVAL_MAP_IN_TRAINING = False
