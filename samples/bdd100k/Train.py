@@ -4,35 +4,31 @@ import sys
 import time
 
 # Import Mask RCNN
+
 ROOT_DIR = os.path.abspath("../../")
 sys.path.append(ROOT_DIR)  # To find local version of the library
-
 # Root directory of the project
-from samples.coco.coco import CocoConfig, CocoDataset, evaluate_coco
 from mrcnn import model as modellib
+from samples.bdd100k.BDD100K import BDD100KDataset, BDD100KConfig
 import argparse
 
-# Path to trained weights file
-MODEL_PATH = os.path.join(ROOT_DIR, 'weights')
 
-# Directory to save logs and model checkpoints, if not provided
-# through the command line argument --logs
+# Directory to save logs and model checkpoints, if not provided through the command line argument --logs
 DEFAULT_LOGS_DIR = os.path.join(ROOT_DIR, "logs")
-DEFAULT_DATASET_YEAR = "2017"
+# Dataset path for the data
+DATASET_DIR = "/data/BDD/bdd100k/"
 
 if __name__ == '__main__':
 
     # Parse command line arguments
-    parser = argparse.ArgumentParser(description='Train Mask R-CNN on MS COCO.')
-    parser.add_argument('--dataset', required=True,
-                        default='/specific/netapp5_2/gamir/DER-Roei/datasets/MSCoco',
+    parser = argparse.ArgumentParser(description='Train Graph Detector on BDD.')
+    parser.add_argument('--local', help='input directory of videos', action='store', default=False)
+    parser.add_argument('--dataset_dir',
+                        default=DATASET_DIR,
                         metavar="/path/to/coco/",
-                        help='Directory of the MS-COCO dataset')
-    parser.add_argument('--year', required=False,
-                        default=DEFAULT_DATASET_YEAR,
-                        metavar="<year>",
-                        help='Year of the MS-COCO dataset (2014 or 2017) (default=2014)')
-    parser.add_argument('--model', required=True,
+                        help='Directory of the Nexars Incidents dataset')
+    parser.add_argument('--model',
+                        default="nexar",
                         metavar="/path/to/weights.h5",
                         help="Path to weights .h5 file or 'coco'")
     parser.add_argument('--logs', required=False,
@@ -43,11 +39,6 @@ if __name__ == '__main__':
                         default=500,
                         metavar="<image count>",
                         help='Images to use for evaluation (default=500)')
-    parser.add_argument('--download', required=False,
-                        default=False,
-                        metavar="<True|False>",
-                        help='Automatically download and unzip MS-COCO files (default=False)',
-                        type=bool)
     parser.add_argument('--gpu', required=False,
                         default=0,
                         metavar="0, 1, ...",
@@ -59,36 +50,32 @@ if __name__ == '__main__':
                         help='Number of workers',
                         type=int)
     args = parser.parse_args()
+
+    # Use Local params
+    if args.local:
+        args.dataset_dir = "/Users/roeiherzig/Datasets/BDD/bdd100k/"
+        # args.model = "bdd100k"
+        # Resnet50 model
+        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180902T1624/mask_rcnn_bdd100k_0038.h5"
+
     print("Model: ", args.model)
-    print("Dataset: ", args.dataset)
-    print("Year: ", args.year)
+    print("Dataset dir: ", args.dataset_dir)
     print("Logs: ", args.logs)
-    print("Auto Download: ", args.download)
     print("GPU: ", args.gpu)
     print("Number of Workers: ", args.workers)
 
     # Define GPU training
-    os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
+    # os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
 
-    # Configurations
-    class InferenceConfig(CocoConfig):
-        # Set batch size to 1 since we'll be running inference on one image at a time.
-        # Batch size = GPU_COUNT * IMAGES_PER_GPU
-        GPU_COUNT = 1
-        IMAGES_PER_GPU = 1
-        DETECTION_MIN_CONFIDENCE = 0
-        POST_NMS_ROIS_INFERENCE = 100
-
-
-    config = InferenceConfig()
+    # Configurations training
+    config = BDD100KConfig()
     config.display()
 
     # Create model
-    model = modellib.MaskRCNN(mode="inference", config=config,
-                              model_dir=args.logs)
+    model = modellib.MaskRCNN(mode="training", config=config, model_dir=args.logs)
 
     # Select weights file to load
-    if args.model.lower() == "coco":
+    if args.model.lower() == "bdd100k":
         model_path = model.get_imagenet_weights()
     elif args.model.lower() == "last":
         # Find last trained weights
@@ -103,16 +90,42 @@ if __name__ == '__main__':
     print("Loading weights ", model_path)
     model.load_weights(model_path, by_name=True)
 
+    # Check eval map in training at the end of each epoch
+    predicting_model = None
+    if config.EVAL_MAP_IN_TRAINING:
+        # Create model
+        predicting_model = modellib.MaskRCNN(mode="inference", config=config, model_dir=args.logs)
+        predicting_model.load_weights(model_path, by_name=True)
+
     # # Save in a new locations
     # stmp = time.strftime("%c").replace(" ", "_")
     # model_path = os.path.join(MODEL_PATH, stmp)
     # create_folder(model_path)
     # model_path = os.path.join(model_path, stmp, "mask_rcnn.h5")
 
-    # Testing dataset
-    dataset_val = CocoDataset()
-    coco = dataset_val.load_coco(args.dataset, "val", year=args.year, return_coco=True,
-                                 auto_download=args.download)
+    # Training dataset. Use the training set and 35K from the validation set, as as in the Mask RCNN paper.
+    dataset_train = BDD100KDataset()
+    dataset_train.load_bdd100k(args.dataset_dir, "train")
+    dataset_train.prepare()
+
+    # Validation dataset
+    dataset_val = BDD100KDataset()
+    dataset_val.load_bdd100k(args.dataset_dir, "val")
     dataset_val.prepare()
-    print("Running COCO evaluation on {} images.".format(args.limit))
-    evaluate_coco(model, dataset_val, coco, "bbox", limit=int(args.limit))
+
+    # Image Augmentation
+    # Right/Left flip 50% of the time
+    # augmentation = imgaug.augmenters.Fliplr(0.5)
+    augmentation = None
+    #
+    # Training - Fine tune all layers
+    print("Fine tune all layers")
+    model.train(dataset_train, dataset_val,
+                learning_rate=config.LEARNING_RATE / 10,
+                epochs=config.EPOCH,
+                layers='all',
+                augmentation=augmentation,
+                workers_nb=config.WORKERS_NB,
+                queue_size=config.QUEUE_SIZE,
+                prediction_model=predicting_model)
+

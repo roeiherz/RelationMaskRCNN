@@ -2,8 +2,7 @@ import cv2
 
 import av
 import shutil
-
-from Utils import download_incidents, INPUT_ROOT, OUTPUT_ROOT, INDEX_FILE
+from utils import download_incidents
 import os
 import pandas as pd
 
