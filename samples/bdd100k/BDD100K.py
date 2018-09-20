@@ -68,7 +68,7 @@ class BDD100KConfig(Config):
     """
     # Give the configuration a recognizable name
     NAME = "bdd100k"
-    BACKBONE = "resnet50"
+    BACKBONE = "resnet101"
 
     # Run eval of map at each end of epoch
     EVAL_MAP_IN_TRAINING = False
@@ -84,12 +84,12 @@ class BDD100KConfig(Config):
     NUM_CLASSES = 11  # BDD100K 10 classes + 1 negative
 
     # Relation Networks or no Relation Networks at all
-    GPI_TYPE = None
+    GPI_TYPE = "FeatureAttention"
 
     # Train or not backbone weights
-    TRAINABLE_BACKBONE = True
-    TRAINABLE_FPN = True
-    TRAINABLE_RPN = True
+    TRAINABLE_BACKBONE = False
+    TRAINABLE_FPN = False
+    TRAINABLE_RPN = False
 
     # Number of ROIs per image to feed to classifier/mask heads
     # The Mask RCNN paper uses 512 but often the RPN doesn't generate
