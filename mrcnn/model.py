@@ -915,7 +915,7 @@ def build_rpn_model(anchor_stride, anchors_per_location, depth, trainable_rpn=Tr
 ############################################################
 
 def fpn_classifier_graph(rois, feature_maps, image_meta, pool_size, num_classes, train_bn=True,
-                         fc_layers_size=516, num_rois=20, gpi_type="FeatureAttention"):
+                         fc_layers_size=1024, num_rois=20, gpi_type="FeatureAttention"):
     """Builds the computation graph of the feature pyramid network classifier
     and regressor heads.
 
@@ -2117,7 +2117,7 @@ class MaskRCNN():
         """Modified version of the correspoding Keras function with
         the addition of multi-GPU support and the ability to exclude
         some layers from loading.
-        exlude: list of layer names to excluce
+        exlude: list of layer names to exclude
         """
         import h5py
         # from keras.engine import topology
