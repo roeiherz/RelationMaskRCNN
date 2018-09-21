@@ -68,7 +68,7 @@ class BDD100KConfig(Config):
     """
     # Give the configuration a recognizable name
     NAME = "bdd100k"
-    BACKBONE = "resnet50"
+    BACKBONE = "resnet101"
 
     # Run eval of map at each end of epoch
     EVAL_MAP_IN_TRAINING = False
@@ -85,23 +85,27 @@ class BDD100KConfig(Config):
 
     # Relation Networks or no Relation Networks at all
     GPI_TYPE = "FeatureAttention"
+    # GPI_TYPE = None
 
     # Train or not backbone weights
-    TRAINABLE_BACKBONE = False
-    TRAINABLE_FPN = False
-    TRAINABLE_RPN = False
+    TRAINABLE_BACKBONE = True
+    TRAINABLE_FPN = True
+    TRAINABLE_RPN = True
 
     # Number of ROIs per image to feed to classifier/mask heads
     # The Mask RCNN paper uses 512 but often the RPN doesn't generate
     # enough positive proposals to fill this and keep a positive:negative
     # ratio of 1:3. You can increase the number of proposals by adjusting the RPN NMS threshold.
-    TRAIN_ROIS_PER_IMAGE = 32
+    # TRAIN_ROIS_PER_IMAGE = 32
+    TRAIN_ROIS_PER_IMAGE = 200
 
     # Size of the fully-connected layers in the classification graph
     FPN_CLASSIF_FC_LAYERS_SIZE = 512
+    # FPN_CLASSIF_FC_LAYERS_SIZE = 1024
 
     # Exclude layers
-    EXCLUDE_LAYERS = ['mrcnn_bbox_fc', 'mrcnn_class_logits']
+    # EXCLUDE_LAYERS = ['mrcnn_bbox_fc', 'mrcnn_class_logits']
+    EXCLUDE_LAYERS = None
 
     # Percent of positive ROIs used to train classifier/mask heads
     ROI_POSITIVE_RATIO = 0.33

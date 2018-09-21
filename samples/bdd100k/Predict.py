@@ -107,7 +107,8 @@ if __name__ == '__main__':
         # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180902T1624/mask_rcnn_bdd100k_0038.h5"
         # Resnet101 Model
         # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180831T1657/mask_rcnn_bdd100k_0160.h5"
-        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180919T2229/mask_rcnn_bdd100k_0191.h5"
+        # Resnet101 GPI Model
+        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180920T1543/mask_rcnn_bdd100k_0164.h5"
         # args.save_path = "/Users/roeiherzig/RelationMaskRCNN/samples/bdd100k/7_160_resnet101.jpg"
         args.save_path = "/Users/roeiherzig/RelationMaskRCNN/samples/bdd100k"
 
