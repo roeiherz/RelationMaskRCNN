@@ -85,15 +85,14 @@ if __name__ == '__main__':
     # Define GPU training
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
 
-
     # Configurations
     class InferenceConfig(CocoConfig):
         # Set batch size to 1 since we'll be running inference on one image at a time.
         # Batch size = GPU_COUNT * IMAGES_PER_GPU
         GPU_COUNT = 1
         IMAGES_PER_GPU = 1
-        DETECTION_MIN_CONFIDENCE = 0
-        POST_NMS_ROIS_INFERENCE = 50
+        DETECTION_MIN_CONFIDENCE = 0.0
+        POST_NMS_ROIS_INFERENCE = 100
 
 
     config = InferenceConfig()
@@ -144,6 +143,7 @@ if __name__ == '__main__':
     ax = get_ax(1)
     r = results[0]
     save_path = "{}_new_weights".format(image_id)
+    image = dataset.load_image(image_id)
     visualize.save_instances(image, r['rois'], gt_bbox, r['class_ids'], gt_class_id, dataset.class_names, r['scores'],
                              ax=ax, title="Predictions_{}".format(info["id"]), path=save_path, show_mask=False)
     print("gt_class_id", gt_class_id)

@@ -28,6 +28,9 @@ class Config(object):
     # NUMBER OF GPUs to use. For CPU training, use 1
     GPU_COUNT = 1
 
+    # Relation Networks or no Relation Networks at all
+    GPI_TYPE = None
+
     # Number of images to train with on each GPU. A 12GB GPU can typically
     # handle 2 images of 1024x1024px.
     # Adjust based on your GPU memory and image sizes. Use the highest
@@ -54,6 +57,11 @@ class Config(object):
     # of model.resnet_graph. If you do so, you need to supply a callable
     # to COMPUTE_BACKBONE_SHAPE as well
     BACKBONE = "resnet101"
+
+    # Train backbone weight
+    TRAINABLE_BACKBONE = True
+    TRAINABLE_FPN = True
+    TRAINABLE_RPN = True
 
     # Only useful if you supply a callable to BACKBONE. Should compute
     # the shape of each layer of the FPN Pyramid.

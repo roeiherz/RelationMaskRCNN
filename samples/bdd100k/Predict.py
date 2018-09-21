@@ -102,12 +102,13 @@ if __name__ == '__main__':
     # Use Local params
     if args.local:
         args.dataset_dir = "/Users/roeiherzig/Datasets/BDD/bdd100k/"
-        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180831T1657/mask_rcnn_bdd100k_0029.h5"
-        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180831T1657/mask_rcnn_bdd100k_0042.h5"
-        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180831T1657/mask_rcnn_bdd100k_0114.h5"
+        # Resnet50 Model
         # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180902T1624/mask_rcnn_bdd100k_0038.h5"
-        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180902T1624/mask_rcnn_bdd100k_0160.h5"
-        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180902T1624/mask_rcnn_bdd100k_0160.h5"
+        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180902T1624/mask_rcnn_bdd100k_0038.h5"
+        # Resnet101 Model
+        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180831T1657/mask_rcnn_bdd100k_0160.h5"
+        # Resnet101 GPI Model
+        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180920T1543/mask_rcnn_bdd100k_0164.h5"
         # args.save_path = "/Users/roeiherzig/RelationMaskRCNN/samples/bdd100k/7_160_resnet101.jpg"
         args.save_path = "/Users/roeiherzig/RelationMaskRCNN/samples/bdd100k"
 
@@ -119,7 +120,6 @@ if __name__ == '__main__':
         IMAGES_PER_GPU = 1
         DETECTION_MIN_CONFIDENCE = 0
         POST_NMS_ROIS_INFERENCE = 50
-        BACKBONE = "resnet50"
 
 
     config = InferenceConfig()
@@ -156,11 +156,11 @@ if __name__ == '__main__':
     dataset.load_bdd100k(args.dataset_dir, "val", load_images_flag=False)
     dataset.prepare()
 
-    uuids = ["c1f8d9b3-81ee1c2d", "b2db41a2-721e0f4e", "b222c329-5dc8dbf7", "bb8e2033-6c418fc7", "c0625a26-cefa81e9",
-             "b6d0b9d1-d643d86a", "c18feebb-3e10acea"]
-    ids = get_ids_from_uuids(dataset, uuids)
+    # uuids = ["c1f8d9b3-81ee1c2d", "b2db41a2-721e0f4e", "b222c329-5dc8dbf7", "bb8e2033-6c418fc7", "c0625a26-cefa81e9",
+    #          "b6d0b9d1-d643d86a", "c18feebb-3e10acea"]
+    # ids = get_ids_from_uuids(dataset, uuids)
     # ids = [random.choice(dataset.image_ids)]
-    # ids = [1536]
+    ids = [1536]
 
     for image_id in ids:
         image, _, gt_class_id, gt_bbox = modellib.load_image_gt(dataset, config, image_id)

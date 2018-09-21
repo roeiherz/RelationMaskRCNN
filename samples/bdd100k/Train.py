@@ -12,7 +12,6 @@ from mrcnn import model as modellib
 from samples.bdd100k.BDD100K import BDD100KDataset, BDD100KConfig
 import argparse
 
-
 # Directory to save logs and model checkpoints, if not provided through the command line argument --logs
 DEFAULT_LOGS_DIR = os.path.join(ROOT_DIR, "logs")
 # Dataset path for the data
@@ -45,31 +44,41 @@ if __name__ == '__main__':
                         help='GPU number ro run',
                         type=int)
     parser.add_argument('--workers', required=False,
-                        default=0,
+                        default=5,
+                        metavar="0, 1, ...",
+                        help='Number of workers',
+                        type=int)
+    parser.add_argument('--queue_size', required=False,
+                        default=200,
                         metavar="0, 1, ...",
                         help='Number of workers',
                         type=int)
     args = parser.parse_args()
 
+    # Configurations training
+    config = BDD100KConfig()
+    config.display()
+
     # Use Local params
     if args.local:
         args.dataset_dir = "/Users/roeiherzig/Datasets/BDD/bdd100k/"
         # args.model = "bdd100k"
-        # Resnet50 model
-        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180902T1624/mask_rcnn_bdd100k_0038.h5"
+        # Resnet50 Model
+        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180902T1624/mask_rcnn_bdd100k_0038.h5"
+        # Resnet101 Model
+        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180831T1657/mask_rcnn_bdd100k_0160.h5"
+        args.workers = 0
+        args.queue_size = 10
 
     print("Model: ", args.model)
     print("Dataset dir: ", args.dataset_dir)
     print("Logs: ", args.logs)
     print("GPU: ", args.gpu)
     print("Number of Workers: ", args.workers)
+    print("Number of Queue Size: ", args.queue_size)
 
     # Define GPU training
     # os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
-
-    # Configurations training
-    config = BDD100KConfig()
-    config.display()
 
     # Create model
     model = modellib.MaskRCNN(mode="training", config=config, model_dir=args.logs)
@@ -88,7 +97,7 @@ if __name__ == '__main__':
 
     # Load weights
     print("Loading weights ", model_path)
-    model.load_weights(model_path, by_name=True)
+    model.load_weights(model_path, by_name=True, exclude=config.EXCLUDE_LAYERS)
 
     # Check eval map in training at the end of each epoch
     predicting_model = None
@@ -125,7 +134,6 @@ if __name__ == '__main__':
                 epochs=config.EPOCH,
                 layers='all',
                 augmentation=augmentation,
-                workers_nb=config.WORKERS_NB,
-                queue_size=config.QUEUE_SIZE,
+                workers_nb=args.workers,
+                queue_size=args.queue_size,
                 prediction_model=predicting_model)
-

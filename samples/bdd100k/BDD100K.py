@@ -68,7 +68,7 @@ class BDD100KConfig(Config):
     """
     # Give the configuration a recognizable name
     NAME = "bdd100k"
-    BACKBONE = "resnet50"
+    BACKBONE = "resnet101"
 
     # Run eval of map at each end of epoch
     EVAL_MAP_IN_TRAINING = False
@@ -80,13 +80,12 @@ class BDD100KConfig(Config):
     # Uncomment to train on 8 GPUs (default is 1)
     # GPU_COUNT = 8
 
-    # Number of workers
-    WORKERS_NB = 0
-    # QUEUE Size
-    QUEUE_SIZE = 10
-
     # Number of classes
     NUM_CLASSES = 11  # BDD100K 10 classes + 1 negative
+
+    # Relation Networks or no Relation Networks at all
+    GPI_TYPE = "FeatureAttention"
+    # GPI_TYPE = None
 
     # Train or not backbone weights
     TRAINABLE_BACKBONE = True
@@ -97,10 +96,16 @@ class BDD100KConfig(Config):
     # The Mask RCNN paper uses 512 but often the RPN doesn't generate
     # enough positive proposals to fill this and keep a positive:negative
     # ratio of 1:3. You can increase the number of proposals by adjusting the RPN NMS threshold.
+    # TRAIN_ROIS_PER_IMAGE = 32
     TRAIN_ROIS_PER_IMAGE = 200
 
     # Size of the fully-connected layers in the classification graph
-    FPN_CLASSIF_FC_LAYERS_SIZE = 1024
+    FPN_CLASSIF_FC_LAYERS_SIZE = 512
+    # FPN_CLASSIF_FC_LAYERS_SIZE = 1024
+
+    # Exclude layers
+    # EXCLUDE_LAYERS = ['mrcnn_bbox_fc', 'mrcnn_class_logits']
+    EXCLUDE_LAYERS = None
 
     # Percent of positive ROIs used to train classifier/mask heads
     ROI_POSITIVE_RATIO = 0.33
@@ -118,7 +123,7 @@ class BDD100KConfig(Config):
     # See compose_image_meta() for details
     IMAGE_META_SIZE = 1 + 3 + 3 + 4 + 1 + NUM_CLASSES
 
-    STEPS_PER_EPOCH = 1
+    STEPS_PER_EPOCH = 1000
 
     # Number of epochs
     EPOCH = 200
