@@ -3,7 +3,7 @@ This is an implementation of a Relation Mask R-CNN based on [3]. In this reposit
 
 ## Introduction
 
-## Qualitative Examples
+## Qualitative Results
 <img src="qualitive_results.png" width="750">
 
 ## References
