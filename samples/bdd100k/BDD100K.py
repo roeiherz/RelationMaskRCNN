@@ -27,6 +27,8 @@ Usage: import the module (see Jupyter notebooks for examples), or run from
     python3 coco.py evaluate --dataset=/path/to/coco/ --model=last
 """
 import csv
+import random
+
 import cv2
 import os
 import sys
@@ -72,10 +74,6 @@ class BDD100KConfig(Config):
 
     # Run eval of map at each end of epoch
     EVAL_MAP_IN_TRAINING = False
-
-    # We use a GPU with 12GB memory, which can fit two images.
-    # Adjust down if you use a smaller GPU.
-    IMAGES_PER_GPU = 1
 
     # Uncomment to train on 8 GPUs (default is 1)
     # GPU_COUNT = 8
@@ -235,7 +233,7 @@ def _read_annotations(csv_reader, classes, start_dir_path, load_images_flag=True
 
 class BDD100KDataset(utils.Dataset):
 
-    def load_bdd100k(self, dataset_dir, subset, load_images_flag=True):
+    def load_bdd100k(self, dataset_dir, subset, load_images_flag=True, limit=None):
         """Load a subset of the COCO dataset.
         dataset_dir: The root directory of the BDD100K dataset.
         subset: What to load - train, val
@@ -264,10 +262,16 @@ class BDD100KDataset(utils.Dataset):
                 images_data = _read_annotations(csv.reader(file, delimiter=','), class_ids,
                                                 start_dir_path=dataset_dir[:dataset_dir.find("BDD")],
                                                 load_images_flag=load_images_flag)
+                images_data = images_data.items()
+                random.shuffle(images_data)
+
+                if limit is not None:
+                    images_data = images_data[:limit]
 
             # Add images
-            for index, img_path in enumerate(images_data):
-                img_data = images_data[img_path]
+            for index, data in enumerate(images_data):
+                img_path = data[0]
+                img_data = data[1]
                 img_id = os.path.basename(img_path).split('.')[0]
                 boxes = []
                 labels = []
@@ -307,7 +311,7 @@ class BDD100KDataset(utils.Dataset):
 #  Nexar Evaluation
 ############################################################
 
-def _get_detections_annotations(dataset, model, save_path=None, config=None, batch_size=2):
+def _get_detections_annotations(dataset, model, save_path=None, config=None, batch_size=1):
     """
     Get the detections from the model using the generator.
     The result is a list of lists such that the size is:
@@ -357,7 +361,7 @@ def _get_detections_annotations(dataset, model, save_path=None, config=None, bat
 
         # Run detection
         t = time.time()
-        r_lst = model.detect([image_lst], verbose=0)[0]
+        r_lst = model.detect(image_lst, verbose=0)
         t_prediction += (time.time() - t)
 
         for current_index in range(nof_samples_per_batch):
@@ -372,12 +376,14 @@ def _get_detections_annotations(dataset, model, save_path=None, config=None, bat
             image_boxes = r["rois"]
             image_labels = r["class_ids"]
             image_scores = r["scores"]
+            id = dataset.image_info[image_id]['id']
 
             if save_path is not None:
                 image = dataset.load_image(image_id)
                 visualize.save_instances(image, r['rois'], gt_bbox, r['class_ids'], gt_class_id, dataset.class_names,
-                                         r['scores'], ax=None, path=os.path.join(save_path, "{}.jpg".format(i)),
-                                         show_mask=False)
+                                         r['scores'], ax=None, show_mask=False,
+                                         path=os.path.join(save_path, "{}.jpg".format(id)),
+                                         title="Predictions_{}".format(id))
 
             # select detections - [[num_boxes, y1, x1, y2, x2, score, class_id]]
             image_detections = np.concatenate(
@@ -408,7 +414,8 @@ def evaluate(
         model,
         iou_threshold=0.5,
         save_path=None,
-        config=None):
+        config=None,
+        batch_size=1):
     """
     Evaluate a given dataset using a given model.
 
@@ -419,11 +426,13 @@ def evaluate(
         score_threshold : The score confidence threshold to use for detections.
         max_detections  : The maximum number of detections to use per image.
         save_path       : The path to save images with visualized detections to.
+        batch size       : Effective batch size.
     # Returns
         A dict mapping class names to mAP scores.
     """
     # gather all detections and annotations
-    all_detections, all_annotations = _get_detections_annotations(dataset, model, save_path=save_path, config=config)
+    all_detections, all_annotations = _get_detections_annotations(dataset, model, save_path=save_path, config=config,
+                                                                  batch_size=batch_size)
     average_precisions = {}
 
     # process detections and annotations

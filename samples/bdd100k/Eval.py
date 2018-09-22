@@ -20,7 +20,7 @@ DEFAULT_LOGS_DIR = os.path.join(ROOT_DIR, "logs")
 DATASET_DIR = "/data/BDD/bdd100k/"
 
 
-def evaluate_bdd(model, dataset, config, iou_threshold=0.5, save_path=None):
+def evaluate_bdd(model, dataset, config, iou_threshold=0.5, save_path=None, batch_size=1):
     """
     Evaluate a given dataset using a given model.
 
@@ -30,6 +30,7 @@ def evaluate_bdd(model, dataset, config, iou_threshold=0.5, save_path=None):
         score_threshold : The score confidence threshold to use for detections.
         max_detections  : The maximum number of detections to use per image.
         save_path       : The path to save images with visualized detections to.
+        batch size       : Effective batch size.
     """
 
     # run evaluation
@@ -38,7 +39,8 @@ def evaluate_bdd(model, dataset, config, iou_threshold=0.5, save_path=None):
         model,
         iou_threshold=iou_threshold,
         save_path=save_path,
-        config=config
+        config=config,
+        batch_size=batch_size
     )
 
     mean_ap = sum(average_precisions.values()) / len(average_precisions)
@@ -70,7 +72,7 @@ if __name__ == '__main__':
                         metavar="/path/to/logs/",
                         help='Logs and checkpoints directory (default=logs/)')
     parser.add_argument('--limit', required=False,
-                        default=500,
+                        default=None,
                         metavar="<image count>",
                         help='Images to use for evaluation (default=500)')
     parser.add_argument('--gpu', required=False,
@@ -102,16 +104,17 @@ if __name__ == '__main__':
         # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180831T1657/mask_rcnn_bdd100k_0114.h5"
         args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180920T1543/mask_rcnn_bdd100k_0164.h5"
         args.save_path = "/Users/roeiherzig/RelationMaskRCNN/samples/bdd100k/"
+        args.limit = 500
 
     # Configurations
     class InferenceConfig(BDD100KConfig):
-        # Set batch size to 1 since we'll be running inference on one image at a time.
+        # Effective Batch Size: Set batch size to 1 since we'll be running inference on one image at a time.
         # Batch size = GPU_COUNT * IMAGES_PER_GPU
         GPU_COUNT = 1
         IMAGES_PER_GPU = 1
         DETECTION_MIN_CONFIDENCE = 0
         POST_NMS_ROIS_INFERENCE = 100
-
+        EVAL_BATCH_SIZE = 1
 
     config = InferenceConfig()
     config.display()
@@ -138,8 +141,8 @@ if __name__ == '__main__':
 
     # Testing dataset
     dataset = BDD100KDataset()
-    dataset.load_bdd100k(args.dataset_dir, "val")
+    dataset.load_bdd100k(args.dataset_dir, "val", load_images_flag=False, limit=args.limit)
     dataset.prepare()
 
     print("Running BDD100K evaluation on {} images.".format(dataset.size()))
-    evaluate_bdd(model, dataset, config, save_path=args.save_path)
+    evaluate_bdd(model, dataset, config, save_path=args.save_path, batch_size=config.EVAL_BATCH_SIZE)
