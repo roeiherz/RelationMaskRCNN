@@ -937,6 +937,8 @@ def fpn_classifier_graph(rois, feature_maps, image_meta, pool_size, num_classes,
         bbox_deltas: [N, (dy, dx, log(dh), log(dw))] Deltas to apply to
                      proposal boxes
     """
+    # Attention maps scores
+    object_ngbrs_weights, object_ngbrs2_weights = None, None
     # No graph networks
     if gpi_type is None:
         # ROI Pooling
@@ -1089,7 +1091,7 @@ def fpn_classifier_graph(rois, feature_maps, image_meta, pool_size, num_classes,
     s = K.int_shape(x)
     mrcnn_bbox = KL.Reshape((s[1], num_classes, 4), name="mrcnn_bbox")(x)
 
-    return mrcnn_class_logits, mrcnn_probs, mrcnn_bbox
+    return mrcnn_class_logits, mrcnn_probs, mrcnn_bbox, object_ngbrs_weights, object_ngbrs2_weights
 
 
 ############################################################
@@ -2021,7 +2023,7 @@ class MaskRCNN():
 
             # Network Heads
             # TODO: verify that this handles zero padded ROIs
-            mrcnn_class_logits, mrcnn_class, mrcnn_bbox = \
+            mrcnn_class_logits, mrcnn_class, mrcnn_bbox, _, _ = \
                 fpn_classifier_graph(rois, mrcnn_feature_maps, input_image_meta,
                                      config.POOL_SIZE, config.NUM_CLASSES,
                                      train_bn=config.TRAIN_BN,
@@ -2062,7 +2064,7 @@ class MaskRCNN():
         else:
             # Network Heads
             # Proposal classifier and BBox regressor heads
-            mrcnn_class_logits, mrcnn_class, mrcnn_bbox = \
+            mrcnn_class_logits, mrcnn_class, mrcnn_bbox, phi_scores, alpha_scores = \
                 fpn_classifier_graph(rpn_rois, mrcnn_feature_maps, input_image_meta,
                                      config.POOL_SIZE, config.NUM_CLASSES,
                                      train_bn=config.TRAIN_BN,
@@ -2075,7 +2077,9 @@ class MaskRCNN():
                 [rpn_rois, mrcnn_class, mrcnn_bbox, input_image_meta])
 
             model = KM.Model([input_image, input_image_meta, input_anchors],
-                             [detections, mrcnn_class, mrcnn_bbox, rpn_rois, rpn_class, rpn_bbox], name='mask_rcnn')
+                             [detections, mrcnn_class, mrcnn_bbox, rpn_rois, rpn_class, rpn_bbox,
+                              phi_scores, alpha_scores],
+                             name='mask_rcnn')
 
         # Add multi-GPU support.
         if config.GPU_COUNT > 1:
