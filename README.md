@@ -1,4 +1,4 @@
-# Relation MaskRCNN
+# Relation Mask R-CNN
 This is an implementation of a Relation Mask R-CNN based on [3]. In this repository, we use a special version of Graph Networks implemented inside [Mask R-CNN](https://arxiv.org/abs/1703.06870/)[2], which called GPI ([Graph Permutation Invariant](https://arxiv.org/abs/1802.05451)[1]), that use the structure of graphs for a detection task on [Berkeley Deep Drive](http://bdd-data.berkeley.edu/) dataset.
 
 ## Introduction
