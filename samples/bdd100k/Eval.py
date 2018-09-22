@@ -119,6 +119,10 @@ if __name__ == '__main__':
     config = InferenceConfig()
     config.display()
 
+    # Our current GPI version does not support Multi Batch
+    if config.GPI_TYPE is None:
+        config.EVAL_MAP_IN_TRAINING = 1
+
     # Create model
     model = modellib.MaskRCNN(mode="inference", config=config,
                               model_dir=args.logs)
@@ -141,7 +145,7 @@ if __name__ == '__main__':
 
     # Testing dataset
     dataset = BDD100KDataset()
-    dataset.load_bdd100k(args.dataset_dir, "val", load_images_flag=False, limit=args.limit)
+    dataset.load_bdd100k(args.dataset_dir, "val", limit=args.limit)
     dataset.prepare()
 
     print("Running BDD100K evaluation on {} images.".format(dataset.size()))
