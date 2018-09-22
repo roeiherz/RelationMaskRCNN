@@ -240,6 +240,8 @@ class BDD100KDataset(utils.Dataset):
         load_images_flag: Load images before read_annotations flag
         """
 
+        print("limit: {}".format(limit))
+
         # Class mapping
         mappings_csv = os.path.join(dataset_dir, "bdd100k_class_mappings_{}.csv".format(subset))
         try:
@@ -262,8 +264,14 @@ class BDD100KDataset(utils.Dataset):
                 images_data = _read_annotations(csv.reader(file, delimiter=','), class_ids,
                                                 start_dir_path=dataset_dir[:dataset_dir.find("BDD")],
                                                 load_images_flag=load_images_flag)
+
+                print("limit: {}".format(limit))
+                print("length of images_data: {}".format(len(images_data)))
+
                 images_data = images_data.items()
                 random.shuffle(images_data)
+
+                print("length of images_data: {}".format(len(images_data)))
 
                 if limit is not None:
                     images_data = images_data[:limit]
