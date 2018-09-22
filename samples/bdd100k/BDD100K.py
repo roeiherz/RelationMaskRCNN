@@ -238,9 +238,8 @@ class BDD100KDataset(utils.Dataset):
         dataset_dir: The root directory of the BDD100K dataset.
         subset: What to load - train, val
         load_images_flag: Load images before read_annotations flag
+        limit: int of limit of examples to validate
         """
-
-        print("limit: {}".format(limit))
 
         # Class mapping
         mappings_csv = os.path.join(dataset_dir, "bdd100k_class_mappings_{}.csv".format(subset))
@@ -265,13 +264,8 @@ class BDD100KDataset(utils.Dataset):
                                                 start_dir_path=dataset_dir[:dataset_dir.find("BDD")],
                                                 load_images_flag=load_images_flag)
 
-                print("limit: {}".format(limit))
-                print("length of images_data: {}".format(len(images_data)))
-
                 images_data = images_data.items()
                 random.shuffle(images_data)
-
-                print("length of images_data: {}".format(len(images_data)))
 
                 if limit is not None:
                     images_data = images_data[:limit]
