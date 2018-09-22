@@ -1,5 +1,5 @@
 # RelationMaskRCNN
-This is an implementation of a Relation [Mask R-CNN](https://arxiv.org/abs/1703.06870/) based on [3]. In this repository, we use a version of a special Graph Networks implemented inside Mask-RCNN[2], which called GPI (Graph Permutation Invariant [1]), that use the structure of graphs for a detection task on [Berkeley Deep Drive dataset](http://bdd-data.berkeley.edu/).  
+This is an implementation of a Relation [Mask R-CNN](https://arxiv.org/abs/1703.06870/) based on [3]. In this repository, we use a version of a special Graph Networks implemented inside Mask-RCNN[2], which called GPI (Graph Permutation Invariant [1]), that use the structure of graphs for a detection task on [Berkeley Deep Drive](http://bdd-data.berkeley.edu/) dataset.
 
 ## Introduction
 
