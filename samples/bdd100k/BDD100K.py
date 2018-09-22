@@ -307,7 +307,7 @@ class BDD100KDataset(utils.Dataset):
 #  Nexar Evaluation
 ############################################################
 
-def _get_detections_annotations(dataset, model, save_path=None, config=None):
+def _get_detections_annotations(dataset, model, save_path=None, config=None, batch_size=2):
     """
     Get the detections from the model using the generator.
     The result is a list of lists such that the size is:
@@ -324,43 +324,79 @@ def _get_detections_annotations(dataset, model, save_path=None, config=None):
     all_annotations = [[None for i in range(dataset.num_labels())] for j in range(dataset.size())]
     image_ids = dataset.image_ids
 
+    size = len(image_ids)
     t_prediction = 0
     t_start = time.time()
-    for i, image_id in enumerate(image_ids):
-        # Load image
-        image, _, gt_class_id, gt_bbox = modellib.load_image_gt(dataset, config, image_id)
+
+    # Decide batches per epoch
+    if size % batch_size == 0:
+        num_of_batches_per_epoch = size / batch_size
+    else:
+        num_of_batches_per_epoch = size / batch_size + 1
+
+    for batch in range(num_of_batches_per_epoch):
+        # Define number of samples per batch
+        if batch_size * (batch + 1) >= size:
+            nof_samples_per_batch = size - batch_size * batch
+        else:
+            nof_samples_per_batch = batch_size
+
+        image_lst = []
+        gt_class_id_lst = []
+        gt_bbox_lst = []
+        for current_index in range(nof_samples_per_batch):
+            # Get index from files
+            ind = batch * batch_size + current_index
+            image_id = image_ids[ind]
+            # Get data
+            image, _, gt_class_id, gt_bbox = modellib.load_image_gt(dataset, config, image_id)
+            # Append
+            image_lst.append(image)
+            gt_class_id_lst.append(gt_class_id)
+            gt_bbox_lst.append(gt_bbox)
 
         # Run detection
         t = time.time()
-        r = model.detect([image], verbose=0)[0]
+        r_lst = model.detect([image_lst], verbose=0)[0]
         t_prediction += (time.time() - t)
 
-        image_boxes = r["rois"]
-        image_labels = r["class_ids"]
-        image_scores = r["scores"]
+        for current_index in range(nof_samples_per_batch):
+            # Get index from files
+            i = batch * batch_size + current_index
+            # Get data
+            image_id = image_ids[i]
+            gt_class_id = gt_class_id_lst[current_index]
+            gt_bbox = gt_bbox_lst[current_index]
+            r = r_lst[current_index]
 
-        if save_path is not None:
-            image = dataset.load_image(image_id)
-            visualize.save_instances(image, r['rois'], gt_bbox, r['class_ids'], gt_class_id, dataset.class_names,
-                                     r['scores'], ax=None, path=os.path.join(save_path, "{}.jpg".format(i)),
-                                     show_mask=False)
+            image_boxes = r["rois"]
+            image_labels = r["class_ids"]
+            image_scores = r["scores"]
 
-        # select detections - [[num_boxes, y1, x1, y2, x2, score, class_id]]
-        image_detections = np.concatenate(
-            [image_boxes, np.expand_dims(image_scores, axis=1), np.expand_dims(image_labels, axis=1)], axis=1)
+            if save_path is not None:
+                image = dataset.load_image(image_id)
+                visualize.save_instances(image, r['rois'], gt_bbox, r['class_ids'], gt_class_id, dataset.class_names,
+                                         r['scores'], ax=None, path=os.path.join(save_path, "{}.jpg".format(i)),
+                                         show_mask=False)
 
-        # load the annotations - [[num_boxes, y1, x1, y2, x2, class_id]]
-        annotations = np.concatenate([gt_bbox, np.expand_dims(gt_class_id, axis=1)], axis=1)
+            # select detections - [[num_boxes, y1, x1, y2, x2, score, class_id]]
+            image_detections = np.concatenate(
+                [image_boxes, np.expand_dims(image_scores, axis=1), np.expand_dims(image_labels, axis=1)], axis=1)
 
-        # copy detections to all_detections
-        for label in range(dataset.num_labels()):
-            all_detections[i][label] = image_detections[image_detections[:, -1] == label, :-1]
+            # load the annotations - [[num_boxes, y1, x1, y2, x2, class_id]]
+            annotations = np.concatenate([gt_bbox, np.expand_dims(gt_class_id, axis=1)], axis=1)
 
-        # copy detections to all_annotations
-        for label in range(dataset.num_labels()):
-            all_annotations[i][label] = annotations[annotations[:, 4] == label, :4].copy()
+            # copy detections to all_detections
+            for label in range(dataset.num_labels()):
+                all_detections[i][label] = image_detections[image_detections[:, -1] == label, :-1]
 
-        print('{}/{}'.format(i + 1, dataset.size()))
+            # copy detections to all_annotations
+            for label in range(dataset.num_labels()):
+                all_annotations[i][label] = annotations[annotations[:, 4] == label, :4].copy()
+
+            # print('{}/{}'.format(i + 1, dataset.size()))
+
+        print('Batch {}/{}'.format(batch + 1, num_of_batches_per_epoch))
 
     print("Prediction time: {}. Average {}/image".format(t_prediction, t_prediction / len(image_ids)))
     print("Total time: ", time.time() - t_start)
