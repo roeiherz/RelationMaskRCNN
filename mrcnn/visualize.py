@@ -80,6 +80,42 @@ def apply_mask(image, mask, color, alpha=0.5):
                                   image[:, :, c])
     return image
 
+def draw_attention(objects, confidences):
+    """
+
+    :param confidences:
+    :return:
+    """
+    original_detection_centers = {}
+    i = 0
+    for object in objects:
+        try:
+            confidences_per_object = confidences[:, i]
+            heat_map = numpy.zeros(shape=[self.image.shape[0], self.image.shape[1], 1], dtype=numpy.float64)
+            original_detection_centers = self.attention_per_neighb(original_detection_centers, confidences_per_object, heat_map)
+
+            cv2.normalize(heat_map, heat_map, 0, 255, cv2.NORM_MINMAX)
+            heat_map = cv2.convertScaleAbs(heat_map)
+            heat_map_float = heat_map / (heat_map.max() / 16.)
+            heat_map_float = numpy.power(heat_map_float, 2)
+            heat_map_int = cv2.normalize(heat_map_float, None, 0, 255, cv2.NORM_MINMAX)
+            heat_map_int = cv2.convertScaleAbs(heat_map_int)
+            heat_map = heat_map_int
+
+            color_map = self.get_color_map(heat_map)
+            color_map[heat_map == 0] = self.image[heat_map == 0]
+            blend = cv2.addWeighted(color_map, 0.6, self.image, 0.4, 0)
+
+            # path_save = os.path.join(self.folder_path, "objects_img_{0}_att_{1}.jpg".format(self.entity.image.id, object))
+            path_save = os.path.join("objects_img_{0}_att_{1}.jpg".format(self.entity.image.id, object))
+            cv2.imwrite(path_save, blend)
+            print("Objects image have been saved in {} \n".format(path_save))
+            i += 1
+
+        except Exception as e:
+            print("Error: {}".format(str(e)))
+            traceback.print_exc()
+
 
 def save_instances(image, boxes, gt_boxes, class_ids, gt_class_id, class_names, figsize=(16, 16),
                    scores=None, title="", ax=None, show_mask=True, show_bbox=True, colors=None, captions=None, path=""):
