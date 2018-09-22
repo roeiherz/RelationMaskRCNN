@@ -74,7 +74,8 @@ if __name__ == '__main__':
     parser.add_argument('--limit', required=False,
                         default=None,
                         metavar="<image count>",
-                        help='Images to use for evaluation (default=500)')
+                        help='Images to use for evaluation (default=500)',
+                        type=int)
     parser.add_argument('--gpu', required=False,
                         default=0,
                         metavar="0, 1, ...",
