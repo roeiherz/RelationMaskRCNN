@@ -143,6 +143,8 @@ if __name__ == '__main__':
     print("Loading weights ", model_path)
     model.load_weights(model_path, by_name=True)
 
+    print("limit: {}".fromat(args.limit))
+
     # Testing dataset
     dataset = BDD100KDataset()
     dataset.load_bdd100k(args.dataset_dir, "val", limit=args.limit)
