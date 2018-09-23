@@ -6,6 +6,7 @@ Copyright (c) 2017 Matterport, Inc.
 Licensed under the MIT License (see LICENSE for details)
 Written by Waleed Abdulla
 """
+import traceback
 
 import cv2
 import numpy
@@ -15,7 +16,7 @@ import logging
 import random
 import itertools
 import colorsys
-
+import scipy
 import numpy as np
 from skimage.measure import find_contours
 import matplotlib.pyplot as plt
@@ -83,20 +84,29 @@ def apply_mask(image, mask, color, alpha=0.5):
     return image
 
 
-def draw_attention(objects, confidences, image_shape):
+def get_color_map(image, color=cv2.COLORMAP_JET):
+    return cv2.applyColorMap(cv2.equalizeHist(image), color)
+
+
+def draw_attention(rois, confidences, image_shape, image, img_id):
     """
 
+    :param rois:
     :param confidences:
+    :param image_shape:
+    :param image:
+    :param img_id:
     :return:
     """
     original_detection_centers = {}
     i = 0
-    for object in objects:
+    for roi in rois:
         try:
             confidences_per_object = confidences[:, i]
             heat_map = numpy.zeros(shape=[image_shape[0], image_shape[1], 1], dtype=numpy.float64)
-            original_detection_centers = self.attention_per_neighb(original_detection_centers, confidences_per_object,
-                                                                   heat_map)
+            original_detection_centers = attention_per_neighb(rois, original_detection_centers,
+                                                              confidences_per_object,
+                                                              heat_map)
 
             cv2.normalize(heat_map, heat_map, 0, 255, cv2.NORM_MINMAX)
             heat_map = cv2.convertScaleAbs(heat_map)
@@ -106,12 +116,11 @@ def draw_attention(objects, confidences, image_shape):
             heat_map_int = cv2.convertScaleAbs(heat_map_int)
             heat_map = heat_map_int
 
-            color_map = self.get_color_map(heat_map)
-            color_map[heat_map == 0] = self.image[heat_map == 0]
-            blend = cv2.addWeighted(color_map, 0.6, self.image, 0.4, 0)
+            color_map = get_color_map(heat_map)
+            color_map[heat_map == 0] = image[heat_map == 0]
+            blend = cv2.addWeighted(color_map, 0.6, image, 0.4, 0)
 
-            # path_save = os.path.join(self.folder_path, "objects_img_{0}_att_{1}.jpg".format(self.entity.image.id, object))
-            path_save = os.path.join("objects_img_{0}_att_{1}.jpg".format(self.entity.image.id, object))
+            path_save = os.path.join("objects_img_{0}_att_{1}.jpg".format(img_id, roi))
             cv2.imwrite(path_save, blend)
             print("Objects image have been saved in {} \n".format(path_save))
             i += 1
@@ -119,6 +128,64 @@ def draw_attention(objects, confidences, image_shape):
         except Exception as e:
             print("Error: {}".format(str(e)))
             traceback.print_exc()
+
+
+def attention_per_neighb(rois, original_detection_centers, confidences_per_object, heat_map, scale=2):
+    """
+
+    :param rois:
+    :param original_detection_centers:
+    :param confidences_per_object:
+    :param heat_map:
+    :param scale:
+    :return:
+    """
+    ind = 0
+    for roi in rois:
+        try:
+            confidence = confidences_per_object[ind]
+            # Get the mask: a dict with {x1,x2,y1,y2}
+            mask_object = get_mask_from_object(roi)
+            # Saves as a box
+            object_box = numpy.array([mask_object['x1'], mask_object['y1'], mask_object['x2'], mask_object['y2']])
+            width = object_box[BOX.X2] - object_box[BOX.X1]
+            height = object_box[BOX.Y2] - object_box[BOX.Y1]
+            object_label_gt = roi.names[0]
+            original_detection_centers[ind] = (object_box[BOX.X1] + width / 2, object_box[BOX.Y1] + height / 2)
+            # self.draw_labeled_box(name=self.id, box=object_box, label=object_label_gt,
+            #                       rect_color=rect_color(ind), scale=2, img=overlay)
+
+            # cv2.imwrite("overlay.jpg", overlay)
+            # output = cv2.addWeighted(overlay, confidence, output, 1, 0)
+            # cv2.imwrite("output.jpg", output)
+
+            gaussian = numpy.zeros(shape=[height, width], dtype=numpy.float64)
+            gaussian[height / 2, width / 2] = 1
+            gaussian = scipy.ndimage.filters.gaussian_filter(gaussian, (height / 8., width / 8.))
+            cv2.normalize(gaussian, gaussian, 0, confidence, cv2.NORM_MINMAX)
+            heat_map[object_box[BOX.Y1]:object_box[BOX.Y2], object_box[BOX.X1]:object_box[BOX.X2]] += numpy.expand_dims(
+                gaussian, axis=2)
+            # heat_map[object_box[BOX.Y1]:object_box[BOX.Y2], object_box[BOX.X1]:object_box[BOX.X2]] = numpy.expand_dims(gaussian, axis=2)
+
+            # copy_heatmap = numpy.copy(heat_map)
+            # cv2.normalize(copy_heatmap, copy_heatmap, 0, 255, cv2.NORM_MINMAX)
+            # copy_heatmap = cv2.convertScaleAbs(copy_heatmap)
+            # heat_map_float = copy_heatmap / (copy_heatmap.max() / 16.)
+            # heat_map_float = numpy.power(heat_map_float, 2)
+            # heat_map_int = cv2.normalize(heat_map_float, None, 0, 255, cv2.NORM_MINMAX)
+            # heat_map_int = cv2.convertScaleAbs(heat_map_int)
+            # copy_heatmap = heat_map_int
+            #
+            # color_map = self.get_color_map(copy_heatmap, 0)
+            # color_map[copy_heatmap == 0] = self.image[copy_heatmap == 0]
+            # blend = cv2.addWeighted(color_map, 0.5, self.image, 0.5, 0)
+
+            ind += 1
+        except Exception as e:
+            print("Error: {}".format(str(e)))
+            traceback.print_exc()
+
+    return original_detection_centers
 
 
 def save_instances(image, boxes, gt_boxes, class_ids, gt_class_id, class_names, figsize=(16, 16),
