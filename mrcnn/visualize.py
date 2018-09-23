@@ -7,6 +7,8 @@ Licensed under the MIT License (see LICENSE for details)
 Written by Waleed Abdulla
 """
 
+import cv2
+import numpy
 import os
 import sys
 import logging
@@ -80,7 +82,8 @@ def apply_mask(image, mask, color, alpha=0.5):
                                   image[:, :, c])
     return image
 
-def draw_attention(objects, confidences):
+
+def draw_attention(objects, confidences, image_shape):
     """
 
     :param confidences:
@@ -91,8 +94,9 @@ def draw_attention(objects, confidences):
     for object in objects:
         try:
             confidences_per_object = confidences[:, i]
-            heat_map = numpy.zeros(shape=[self.image.shape[0], self.image.shape[1], 1], dtype=numpy.float64)
-            original_detection_centers = self.attention_per_neighb(original_detection_centers, confidences_per_object, heat_map)
+            heat_map = numpy.zeros(shape=[image_shape[0], image_shape[1], 1], dtype=numpy.float64)
+            original_detection_centers = self.attention_per_neighb(original_detection_centers, confidences_per_object,
+                                                                   heat_map)
 
             cv2.normalize(heat_map, heat_map, 0, 255, cv2.NORM_MINMAX)
             heat_map = cv2.convertScaleAbs(heat_map)
