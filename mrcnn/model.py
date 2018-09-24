@@ -28,6 +28,7 @@ from mrcnn import utils
 from distutils.version import LooseVersion
 from mrcnn.GPIKerasLayer import GPIKerasLayer, GPIKerasExpandLayer, GPIKerasExpandGraphLayer, GPIKerasForgetLayer
 from mrcnn.callbacks import Evaluate, RedirectModel
+from mrcnn.utils import softmax
 
 assert LooseVersion(tf.__version__) >= LooseVersion("1.3")
 assert LooseVersion(keras.__version__) >= LooseVersion('2.0.8')
@@ -2433,7 +2434,7 @@ class MaskRCNN():
         return molded_images, image_metas, windows
 
     def unmold_detections(self, detections, original_image_shape,
-                          image_shape, window):
+                          image_shape, window, phi_scores=None, alpha_scores=None):
         """Reformats the detections of one image from the format of the neural
         network output to a format suitable for use in the rest of the
         application.
@@ -2460,6 +2461,12 @@ class MaskRCNN():
         boxes = detections[:N, :4]
         class_ids = detections[:N, 4].astype(np.int32)
         scores = detections[:N, 5]
+        # Extract phi and alpha attention maps
+        if phi_scores is not None and alpha_scores is not None:
+            phi_scores = phi_scores[:N, :N, :]
+            phi_scores = softmax(np.sum(phi_scores, axis=2))
+            alpha_scores = alpha_scores[:N, :]
+            alpha_scores = softmax(np.sum(alpha_scores, axis=1))
 
         # Translate normalized coordinates in the resized image to pixel
         # coordinates in the original image before resizing
@@ -2484,7 +2491,7 @@ class MaskRCNN():
             scores = np.delete(scores, exclude_ix, axis=0)
             N = class_ids.shape[0]
 
-        return boxes, class_ids, scores
+        return boxes, class_ids, scores, phi_scores, alpha_scores
 
     def detect(self, images, verbose=0):
         """Runs the detection pipeline.
@@ -2526,25 +2533,28 @@ class MaskRCNN():
             log("image_metas", image_metas)
             log("anchors", anchors)
         # Run object detection
-        detections, _, _, _, _, _, _, _ = \
+        detections, _, _, _, _, _, phi_scores, alpha_scores = \
             self.keras_model.predict([molded_images, image_metas, anchors], verbose=0)
 
         # Process detections
         results = []
         for i, image in enumerate(images):
-            final_rois, final_class_ids, final_scores = \
-                self.unmold_detections(detections[i], image.shape, molded_images[i].shape, windows[i])
+            final_rois, final_class_ids, final_scores, final_phi_scores, final_alpha_scores = \
+                self.unmold_detections(detections[i], image.shape, molded_images[i].shape, windows[i], phi_scores[i],
+                                       alpha_scores[i])
             results.append({
                 "rois": final_rois,
                 "class_ids": final_class_ids,
-                "scores": final_scores
+                "scores": final_scores,
+                "object_attention": final_alpha_scores,
+                "relation_attention": final_phi_scores,
             })
         return results
 
     def detect_molded(self, molded_images, image_metas, verbose=0):
-        """Runs the detection pipeline, but expect inputs that are
-        molded already. Used mostly for debugging and inspecting
-        the model.
+        """
+        Runs the detection pipeline, but expect inputs that are molded already.
+        Used mostly for debugging and inspecting the model.
 
         molded_images: List of images loaded using load_image_gt()
         image_metas: image meta data, also retruned by load_image_gt()
@@ -2581,7 +2591,7 @@ class MaskRCNN():
             log("image_metas", image_metas)
             log("anchors", anchors)
         # Run object detection
-        detections, _, _, _, _, _ = \
+        detections, _, _, _, _, _, phi_scores, alpha_scores = \
             self.keras_model.predict([molded_images, image_metas, anchors], verbose=0)
         # Process detections
         results = []

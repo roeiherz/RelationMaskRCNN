@@ -118,8 +118,8 @@ if __name__ == '__main__':
         # Batch size = GPU_COUNT * IMAGES_PER_GPU
         GPU_COUNT = 1
         IMAGES_PER_GPU = 1
-        DETECTION_MIN_CONFIDENCE = 0
-        POST_NMS_ROIS_INFERENCE = 50
+        DETECTION_MIN_CONFIDENCE = 0.0
+        POST_NMS_ROIS_INFERENCE = 100
 
 
     config = InferenceConfig()
@@ -158,9 +158,10 @@ if __name__ == '__main__':
 
     # uuids = ["c1f8d9b3-81ee1c2d", "b2db41a2-721e0f4e", "b222c329-5dc8dbf7", "bb8e2033-6c418fc7", "c0625a26-cefa81e9",
     #          "b6d0b9d1-d643d86a", "c18feebb-3e10acea"]
-    # ids = get_ids_from_uuids(dataset, uuids)
+    uuids = ["c927d51b-92852659"]
+    ids = get_ids_from_uuids(dataset, uuids)
     # ids = [random.choice(dataset.image_ids)]
-    ids = [1536]
+    # ids = [1536]
 
     for image_id in ids:
         image, _, gt_class_id, gt_bbox = modellib.load_image_gt(dataset, config, image_id)
@@ -176,7 +177,10 @@ if __name__ == '__main__':
         image = dataset.load_image(image_id)
         visualize.save_instances(image, r['rois'], gt_bbox, r['class_ids'], gt_class_id, dataset.class_names, r['scores'],
                                  ax=ax, title="Predictions_{}".format(info["id"]),
-                                 path="{}/{}.jpg".format(args.save_path, info["id"]),
+                                 path="{}/{}_gpi_conf07_attention.jpg".format(args.save_path, info["id"]),
                                  show_mask=False)
+        visualize.draw_attention(r['rois'], r['relation_attention'], image, info["id"])
         print("gt_class_id", gt_class_id)
         print("gt_bbox", gt_bbox)
+
+    print("End Graph Detector Prediction")

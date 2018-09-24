@@ -25,6 +25,8 @@ from matplotlib.patches import Polygon
 import IPython.display
 
 # Root directory of the project
+from mrcnn.Visualizer import CvColor
+
 ROOT_DIR = os.path.abspath("../")
 
 # Import Mask RCNN
@@ -88,16 +90,16 @@ def get_color_map(image, color=cv2.COLORMAP_JET):
     return cv2.applyColorMap(cv2.equalizeHist(image), color)
 
 
-def draw_attention(rois, confidences, image_shape, image, img_id):
+def draw_attention(rois, confidences, image, img_id):
     """
 
     :param rois:
     :param confidences:
-    :param image_shape:
     :param image:
     :param img_id:
     :return:
     """
+    image_shape = image.shape
     original_detection_centers = {}
     i = 0
     for roi in rois:
@@ -120,7 +122,10 @@ def draw_attention(rois, confidences, image_shape, image, img_id):
             color_map[heat_map == 0] = image[heat_map == 0]
             blend = cv2.addWeighted(color_map, 0.6, image, 0.4, 0)
 
-            path_save = os.path.join("objects_img_{0}_att_{1}.jpg".format(img_id, roi))
+            # tuple(map(lambda x: numpy.float32(sum(x)), zip(pt1, (0, label_pixel_height2), (PADDING, 2 * PADDING))))
+            # cv2.PutText(img=blend, text=confidences_per_object[0], org=original_detection_centers[0], color=CvColor.BLACK)
+
+            path_save = os.path.join("{0}_att_{1}.jpg".format(img_id, roi))
             cv2.imwrite(path_save, blend)
             print("Objects image have been saved in {} \n".format(path_save))
             i += 1
@@ -133,7 +138,7 @@ def draw_attention(rois, confidences, image_shape, image, img_id):
 def attention_per_neighb(rois, original_detection_centers, confidences_per_object, heat_map, scale=2):
     """
 
-    :param rois:
+    :param rois: [num_instance, (y1, x1, y2, x2)] in image coordinates
     :param original_detection_centers:
     :param confidences_per_object:
     :param heat_map:
@@ -144,41 +149,16 @@ def attention_per_neighb(rois, original_detection_centers, confidences_per_objec
     for roi in rois:
         try:
             confidence = confidences_per_object[ind]
-            # Get the mask: a dict with {x1,x2,y1,y2}
-            mask_object = get_mask_from_object(roi)
-            # Saves as a box
-            object_box = numpy.array([mask_object['x1'], mask_object['y1'], mask_object['x2'], mask_object['y2']])
-            width = object_box[BOX.X2] - object_box[BOX.X1]
-            height = object_box[BOX.Y2] - object_box[BOX.Y1]
-            object_label_gt = roi.names[0]
-            original_detection_centers[ind] = (object_box[BOX.X1] + width / 2, object_box[BOX.Y1] + height / 2)
-            # self.draw_labeled_box(name=self.id, box=object_box, label=object_label_gt,
-            #                       rect_color=rect_color(ind), scale=2, img=overlay)
-
-            # cv2.imwrite("overlay.jpg", overlay)
-            # output = cv2.addWeighted(overlay, confidence, output, 1, 0)
-            # cv2.imwrite("output.jpg", output)
+            y1, x1, y2, x2 = roi
+            width = x2 - x1
+            height = y2 - y1
+            original_detection_centers[ind] = (x1 + width / 2, y1 + height / 2)
 
             gaussian = numpy.zeros(shape=[height, width], dtype=numpy.float64)
             gaussian[height / 2, width / 2] = 1
-            gaussian = scipy.ndimage.filters.gaussian_filter(gaussian, (height / 8., width / 8.))
+            gaussian = scipy.ndimage.filters.gaussian_filter(gaussian, (height / 16., width / 16.))
             cv2.normalize(gaussian, gaussian, 0, confidence, cv2.NORM_MINMAX)
-            heat_map[object_box[BOX.Y1]:object_box[BOX.Y2], object_box[BOX.X1]:object_box[BOX.X2]] += numpy.expand_dims(
-                gaussian, axis=2)
-            # heat_map[object_box[BOX.Y1]:object_box[BOX.Y2], object_box[BOX.X1]:object_box[BOX.X2]] = numpy.expand_dims(gaussian, axis=2)
-
-            # copy_heatmap = numpy.copy(heat_map)
-            # cv2.normalize(copy_heatmap, copy_heatmap, 0, 255, cv2.NORM_MINMAX)
-            # copy_heatmap = cv2.convertScaleAbs(copy_heatmap)
-            # heat_map_float = copy_heatmap / (copy_heatmap.max() / 16.)
-            # heat_map_float = numpy.power(heat_map_float, 2)
-            # heat_map_int = cv2.normalize(heat_map_float, None, 0, 255, cv2.NORM_MINMAX)
-            # heat_map_int = cv2.convertScaleAbs(heat_map_int)
-            # copy_heatmap = heat_map_int
-            #
-            # color_map = self.get_color_map(copy_heatmap, 0)
-            # color_map[copy_heatmap == 0] = self.image[copy_heatmap == 0]
-            # blend = cv2.addWeighted(color_map, 0.5, self.image, 0.5, 0)
+            heat_map[y1:y2, x1:x2] += numpy.expand_dims(gaussian, axis=2)
 
             ind += 1
         except Exception as e:
@@ -191,7 +171,7 @@ def attention_per_neighb(rois, original_detection_centers, confidences_per_objec
 def save_instances(image, boxes, gt_boxes, class_ids, gt_class_id, class_names, figsize=(16, 16),
                    scores=None, title="", ax=None, show_mask=True, show_bbox=True, colors=None, captions=None, path=""):
     """
-    boxes: [num_instance, (y1, x1, y2, x2, class_id)] in image coordinates.
+    boxes: [num_instance, (y1, x1, y2, x2)] in image coordinates.
     masks: [height, width, num_instances]
     class_ids: [num_instances]
     class_names: list of class names of the dataset
