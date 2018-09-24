@@ -265,9 +265,9 @@ class BDD100KDataset(utils.Dataset):
                                                 load_images_flag=load_images_flag)
 
                 images_data = images_data.items()
-                random.shuffle(images_data)
 
                 if limit is not None:
+                    random.shuffle(images_data)
                     images_data = images_data[:limit]
 
             # Add images
