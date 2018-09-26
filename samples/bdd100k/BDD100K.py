@@ -249,7 +249,7 @@ class BDD100KDataset(utils.Dataset):
             # parse the provided class file
             with _open_for_csv(mappings_csv) as file:
                 class_ids = _read_classes(csv.reader(file, delimiter=','))
-                from pycocotools.coco import COCO
+                # from pycocotools.coco import COCO
                 # coco = COCO("/Users/roeiherzig/Datasets/MSCoco/annotations/instances_{}{}.json".format(subset, 2017))
                 # class_ids = sorted(coco.getCatIds())
                 # class_ids = [coco.loadCats(label)[0]["name"] for label in class_ids]
