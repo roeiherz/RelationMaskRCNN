@@ -12,3 +12,16 @@ This is an implementation of a Relation Mask R-CNN based on [3]. In this reposit
 [2] Kaiming He, Georgia Gkioxari, Piotr Dollár, Ross Girshick, [Mask R-CNN](https://arxiv.org/abs/1703.06870/), ICCV, 2017.
 
 [3] Abdulla Waleed, [Mask R-CNN for object detection and instance segmentation on Keras and TensorFlow](https://github.com/matterport/Mask_RCNN), 2017.
+
+## Citation
+Please cite our git repo if you use this code in your own work:
+```
+@misc{herzig_relation_maskrcnn,
+  title={Relation Mask R-CNN for object detection based on Graph Permutation Invariant},
+  author={Herzig, Roei},
+  year={2018},
+  publisher={Github},
+  journal={GitHub repository},
+  howpublished={\url{https://github.com/roeiherz/RelationMaskRCNN}},
+}
+```
