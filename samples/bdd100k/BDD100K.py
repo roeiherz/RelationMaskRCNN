@@ -94,16 +94,16 @@ class BDD100KConfig(Config):
     # The Mask RCNN paper uses 512 but often the RPN doesn't generate
     # enough positive proposals to fill this and keep a positive:negative
     # ratio of 1:3. You can increase the number of proposals by adjusting the RPN NMS threshold.
-    # TRAIN_ROIS_PER_IMAGE = 20
-    TRAIN_ROIS_PER_IMAGE = 128
+    TRAIN_ROIS_PER_IMAGE = 20
+    # TRAIN_ROIS_PER_IMAGE = 128
 
     # Size of the fully-connected layers in the classification graph
-    # FPN_CLASSIF_FC_LAYERS_SIZE = 512
-    FPN_CLASSIF_FC_LAYERS_SIZE = 1024
+    FPN_CLASSIF_FC_LAYERS_SIZE = 512
+    # FPN_CLASSIF_FC_LAYERS_SIZE = 1024
 
     # Exclude layers
-    EXCLUDE_LAYERS = ['mrcnn_bbox_fc', 'mrcnn_class_logits']
-    # EXCLUDE_LAYERS = None
+    # EXCLUDE_LAYERS = ['mrcnn_bbox_fc', 'mrcnn_class_logits']
+    EXCLUDE_LAYERS = None
 
     # Percent of positive ROIs used to train classifier/mask heads
     ROI_POSITIVE_RATIO = 0.33

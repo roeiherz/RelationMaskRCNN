@@ -108,7 +108,9 @@ if __name__ == '__main__':
         # Resnet101 Model
         # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180831T1657/mask_rcnn_bdd100k_0160.h5"
         # Resnet101 COCO Model
-        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/Coco/mask_rcnn_coco.h5"
+        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/Coco/mask_rcnn_coco.h5"
+        # Resnet101 GPI Model pre trained from COCO
+        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180926T1231/mask_rcnn_bdd100k_0001.h5"
         # Resnet101 GPI Model
         # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180920T1543/mask_rcnn_bdd100k_0164.h5"
         # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180920T1543/mask_rcnn_bdd100k_0175.h5"
@@ -178,7 +180,7 @@ if __name__ == '__main__':
         # Display results
         ax = get_ax(1)
         r = results[0]
-        image = dataset.load_image(image_id)
+        # image = dataset.load_image(image_id)
         visualize.save_instances(image, r['rois'], gt_bbox, r['class_ids'], gt_class_id, dataset.class_names,
                                  r['scores'],
                                  ax=ax, title="Predictions_{}".format(info["id"]),
