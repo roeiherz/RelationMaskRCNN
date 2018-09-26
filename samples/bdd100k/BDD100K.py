@@ -41,6 +41,7 @@ from six import raise_from
 
 # Root directory of the project
 from mrcnn import utils
+from pycocotools.coco import COCO
 
 ROOT_DIR = os.path.abspath("../../")
 
@@ -79,31 +80,32 @@ class BDD100KConfig(Config):
     # GPU_COUNT = 8
 
     # Number of classes
-    NUM_CLASSES = 11  # BDD100K 10 classes + 1 negative
+    NUM_CLASSES = 10 + 1  # BDD100K 10 classes + 1 negative
+    # NUM_CLASSES = 80 + 1  # MS-COCO 80 classes + 1 negative
 
     # Relation Networks or no Relation Networks at all
     GPI_TYPE = "FeatureAttention"
     # GPI_TYPE = None
 
     # Train or not backbone weights
-    TRAINABLE_BACKBONE = True
-    TRAINABLE_FPN = True
-    TRAINABLE_RPN = True
+    TRAINABLE_BACKBONE = False
+    TRAINABLE_FPN = False
+    TRAINABLE_RPN = False
 
     # Number of ROIs per image to feed to classifier/mask heads
     # The Mask RCNN paper uses 512 but often the RPN doesn't generate
     # enough positive proposals to fill this and keep a positive:negative
     # ratio of 1:3. You can increase the number of proposals by adjusting the RPN NMS threshold.
-    # TRAIN_ROIS_PER_IMAGE = 32
-    TRAIN_ROIS_PER_IMAGE = 200
+    TRAIN_ROIS_PER_IMAGE = 20
+    # TRAIN_ROIS_PER_IMAGE = 200
 
     # Size of the fully-connected layers in the classification graph
     FPN_CLASSIF_FC_LAYERS_SIZE = 512
     # FPN_CLASSIF_FC_LAYERS_SIZE = 1024
 
     # Exclude layers
-    # EXCLUDE_LAYERS = ['mrcnn_bbox_fc', 'mrcnn_class_logits']
-    EXCLUDE_LAYERS = None
+    EXCLUDE_LAYERS = ['mrcnn_bbox_fc', 'mrcnn_class_logits']
+    # EXCLUDE_LAYERS = None
 
     # Percent of positive ROIs used to train classifier/mask heads
     ROI_POSITIVE_RATIO = 0.33
@@ -224,7 +226,9 @@ def _read_annotations(csv_reader, classes, start_dir_path, load_images_flag=True
 
         # check if the current class name is correctly present
         if class_name not in classes:
-            raise ValueError('line {}: unknown class name: \'{}\' (classes: {})'.format(line, class_name, classes))
+            # raise ValueError('line {}: unknown class name: \'{}\' (classes: {})'.format(line, class_name, classes))
+            print('line {}: unknown class name: \'{}\' (classes: {})'.format(line, class_name, classes))
+            continue
 
         result[img_file].append({'x1': x1, 'x2': x2, 'y1': y1, 'y2': y2, 'class': class_name, 'width': width,
                                  'height': height})
@@ -247,6 +251,9 @@ class BDD100KDataset(utils.Dataset):
             # parse the provided class file
             with _open_for_csv(mappings_csv) as file:
                 class_ids = _read_classes(csv.reader(file, delimiter=','))
+                # coco = COCO("/Users/roeiherzig/Datasets/MSCoco/annotations/instances_{}{}.json".format(subset, 2017))
+                # class_ids = sorted(coco.getCatIds())
+                # class_ids = [coco.loadCats(label)[0]["name"] for label in class_ids]
 
             # Add classes
             for index, label in enumerate(class_ids):

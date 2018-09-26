@@ -2077,10 +2077,16 @@ class MaskRCNN():
             detections = DetectionLayer(config, name="mrcnn_detection")(
                 [rpn_rois, mrcnn_class, mrcnn_bbox, input_image_meta])
 
-            model = KM.Model([input_image, input_image_meta, input_anchors],
-                             [detections, mrcnn_class, mrcnn_bbox, rpn_rois, rpn_class, rpn_bbox,
-                              phi_scores, alpha_scores],
-                             name='mask_rcnn')
+            # Attention Model or not
+            if phi_scores is None or alpha_scores is None:
+                model = KM.Model([input_image, input_image_meta, input_anchors],
+                                 [detections, mrcnn_class, mrcnn_bbox, rpn_rois, rpn_class, rpn_bbox],
+                                 name='mask_rcnn')
+            else:
+                model = KM.Model([input_image, input_image_meta, input_anchors],
+                                 [detections, mrcnn_class, mrcnn_bbox, rpn_rois, rpn_class, rpn_bbox,
+                                  phi_scores, alpha_scores],
+                                 name='mask_rcnn')
 
         # Add multi-GPU support.
         if config.GPU_COUNT > 1:
@@ -2189,8 +2195,8 @@ class MaskRCNN():
             if layer.output in self.keras_model.losses:
                 continue
             loss = (
-                tf.reduce_mean(layer.output, keepdims=True)
-                * self.config.LOSS_WEIGHTS.get(name, 1.))
+                    tf.reduce_mean(layer.output, keepdims=True)
+                    * self.config.LOSS_WEIGHTS.get(name, 1.))
             self.keras_model.add_loss(loss)
 
         # Add L2 Regularization
@@ -2217,8 +2223,8 @@ class MaskRCNN():
             self.keras_model.metrics_names.append(name)
             if 'loss' in name:
                 metric = (
-                    tf.reduce_mean(layer.output, keepdims=True)
-                    * self.config.LOSS_WEIGHTS.get(name, 1.))
+                        tf.reduce_mean(layer.output, keepdims=True)
+                        * self.config.LOSS_WEIGHTS.get(name, 1.))
             else:
                 # Calc Accuracy
                 metric = tf.reduce_mean(layer.output, keepdims=True)
@@ -2450,7 +2456,6 @@ class MaskRCNN():
         boxes: [N, (y1, x1, y2, x2)] Bounding boxes in pixels
         class_ids: [N] Integer class IDs for each bounding box
         scores: [N] Float probability scores of the class_id
-        masks: [height, width, num_instances] Instance masks
         """
         # How many detections do we have?
         # Detections array is padded with zeros. Find the first class_id == 0.
@@ -2493,7 +2498,7 @@ class MaskRCNN():
 
         return boxes, class_ids, scores, phi_scores, alpha_scores
 
-    def detect(self, images, verbose=0):
+    def detect(self, images, verbose=0, gpi_type=None):
         """Runs the detection pipeline.
 
         images: List of images, potentially of different sizes.
@@ -2532,16 +2537,26 @@ class MaskRCNN():
             log("molded_images", molded_images)
             log("image_metas", image_metas)
             log("anchors", anchors)
+
         # Run object detection
-        detections, _, _, _, _, _, phi_scores, alpha_scores = \
-            self.keras_model.predict([molded_images, image_metas, anchors], verbose=0)
+        if gpi_type is None:
+            detections, _, _, _, _, _ = \
+                self.keras_model.predict([molded_images, image_metas, anchors], verbose=0)
+        else:
+            detections, _, _, _, _, _, phi_scores, alpha_scores = \
+                self.keras_model.predict([molded_images, image_metas, anchors], verbose=0)
 
         # Process detections
         results = []
         for i, image in enumerate(images):
-            final_rois, final_class_ids, final_scores, final_phi_scores, final_alpha_scores = \
-                self.unmold_detections(detections[i], image.shape, molded_images[i].shape, windows[i], phi_scores[i],
-                                       alpha_scores[i])
+            if gpi_type is None:
+                final_rois, final_class_ids, final_scores, final_phi_scores, final_alpha_scores = \
+                    self.unmold_detections(detections[i], image.shape, molded_images[i].shape, windows[i])
+            else:
+                final_rois, final_class_ids, final_scores, final_phi_scores, final_alpha_scores = \
+                    self.unmold_detections(detections[i], image.shape, molded_images[i].shape, windows[i],
+                                           phi_scores[i],
+                                           alpha_scores[i])
             results.append({
                 "rois": final_rois,
                 "class_ids": final_class_ids,
