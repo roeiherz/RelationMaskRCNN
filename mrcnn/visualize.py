@@ -225,8 +225,8 @@ def save_instances(image, boxes, gt_boxes, class_ids, gt_class_id, class_names, 
             class_id = class_ids[i]
             score = scores[i] if scores is not None else None
             label = class_names[class_id]
-            x = random.randint(x1, (x1 + x2) // 2)
             caption = "{} {:.3f}".format(label, score) if score else label
+            # caption = "check"
         else:
             caption = captions[i]
         ax.text(x1, y1 + 8, caption,
@@ -249,7 +249,6 @@ def save_instances(image, boxes, gt_boxes, class_ids, gt_class_id, class_names, 
             class_id = gt_class_id[i]
             score = scores[i] if scores is not None else None
             label = class_names[class_id]
-            x = random.randint(x1, (x1 + x2) // 2)
             caption = "{} {:.3f}".format(label, score) if score else label
         else:
             caption = captions[i]

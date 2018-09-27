@@ -1624,8 +1624,7 @@ def build_rpn_targets(image_shape, anchors, gt_class_ids, gt_boxes, config):
 
 
 def generate_random_rois(image_shape, count, gt_class_ids, gt_boxes):
-    """Generates ROI proposals similar to what a region proposal network
-    would generate.
+    """Generates ROI proposals similar to what a region proposal network would generate.
 
     image_shape: [Height, Width, Depth]
     count: Number of ROIs to generate
@@ -1649,9 +1648,8 @@ def generate_random_rois(image_shape, count, gt_class_ids, gt_boxes):
         r_x1 = max(gt_x1 - w, 0)
         r_x2 = min(gt_x2 + w, image_shape[1])
 
-        # To avoid generating boxes with zero area, we generate double what
-        # we need and filter out the extra. If we get fewer valid boxes
-        # than we need, we loop and try again.
+        # To avoid generating boxes with zero area, we generate double what we need and filter out the extra.
+        # If we get fewer valid boxes than we need, we loop and try again.
         while True:
             y1y2 = np.random.randint(r_y1, r_y2, (rois_per_box * 2, 2))
             x1x2 = np.random.randint(r_x1, r_x2, (rois_per_box * 2, 2))
@@ -1698,7 +1696,7 @@ def generate_random_rois(image_shape, count, gt_class_ids, gt_boxes):
 
 
 def data_generator(dataset, config, shuffle=True, augment=False, augmentation=None,
-                   random_rois=0, batch_size=1, detection_targets=False):
+                   random_rois=2000, batch_size=1, detection_targets=False):
     """A generator that returns images and corresponding target class ids,
     bounding box deltas, and masks.
 
@@ -1773,13 +1771,22 @@ def data_generator(dataset, config, shuffle=True, augment=False, augmentation=No
             rpn_match, rpn_bbox = build_rpn_targets(image.shape, anchors,
                                                     gt_class_ids, gt_boxes, config)
 
+            # import matplotlib.pyplot as plt
+            # _, ax = plt.subplots(1, 1, figsize=(16 * 1, 16 * 1))
+            # from mrcnn import visualize
+            # tt_boxes = utils.denorm_boxes(rpn_bbox, image.shape[:2])
+            # image = dataset.load_image(image_id)
+            # visualize.save_instances(image, tt_boxes, gt_boxes, gt_class_ids, gt_class_ids, dataset.class_names,
+            #                          scores=None,
+            #                          ax=ax, title="Predictions",
+            #                          path="test.jpg",
+            #                          show_mask=False, captions=None)
+
             # Mask R-CNN Targets
             if random_rois:
-                rpn_rois = generate_random_rois(
-                    image.shape, random_rois, gt_class_ids, gt_boxes)
+                rpn_rois = generate_random_rois(image.shape, random_rois, gt_class_ids, gt_boxes)
                 if detection_targets:
-                    rois, mrcnn_class_ids, mrcnn_bbox = \
-                        build_detection_targets(rpn_rois, gt_class_ids, gt_boxes, config)
+                    rois, mrcnn_class_ids, mrcnn_bbox = build_detection_targets(rpn_rois, gt_class_ids, gt_boxes, config)
 
             # Init batch arrays
             if b == 0:
@@ -2009,7 +2016,7 @@ class MaskRCNN():
 
             if not config.USE_RPN_ROIS:
                 # Ignore predicted ROIs and use ROIs provided as an input.
-                input_rois = KL.Input(shape=[config.POST_NMS_ROIS_TRAINING, 4], name="input_roi", dtype=np.int32)
+                input_rois = KL.Input(shape=[config.POST_NMS_ROIS_TRAINING, 4], name="input_roi", dtype=tf.float32)
                 # Normalize coordinates
                 target_rois = KL.Lambda(lambda x: norm_boxes_graph(x, K.shape(input_image)[1:3]))(input_rois)
             else:

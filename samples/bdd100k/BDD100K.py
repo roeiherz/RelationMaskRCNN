@@ -85,10 +85,13 @@ class BDD100KConfig(Config):
     # GPI_TYPE = "FeatureAttention"
     GPI_TYPE = None
 
+    # Use RPN ROIs or externally generated ROIs for training
+    USE_RPN_ROIS = False
+
     # Train or not backbone weights
-    TRAINABLE_BACKBONE = True
-    TRAINABLE_FPN = True
-    TRAINABLE_RPN = True
+    TRAINABLE_BACKBONE = False
+    TRAINABLE_FPN = False
+    TRAINABLE_RPN = False
 
     # Number of ROIs per image to feed to classifier/mask heads
     # The Mask RCNN paper uses 512 but often the RPN doesn't generate
@@ -309,10 +312,7 @@ class BDD100KDataset(utils.Dataset):
     def image_reference(self, image_id):
         """Return the path of the image."""
         info = self.image_info[image_id]
-        if info["source"] == "balloon":
-            return info["path"]
-        else:
-            super(self.__class__, self).image_reference(image_id)
+        return info["path"]
 
 
 ############################################################
