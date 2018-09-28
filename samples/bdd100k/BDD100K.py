@@ -93,6 +93,12 @@ class BDD100KConfig(Config):
     TRAINABLE_FPN = False
     TRAINABLE_RPN = False
 
+    IMAGE_MIN_DIM = 720
+    IMAGE_MAX_DIM = 1280
+
+    # ORG_IMAGE_MIN_DIM = 720
+    # ORG_IMAGE_MAX_DIM = 1280
+
     # Number of ROIs per image to feed to classifier/mask heads
     # The Mask RCNN paper uses 512 but often the RPN doesn't generate
     # enough positive proposals to fill this and keep a positive:negative

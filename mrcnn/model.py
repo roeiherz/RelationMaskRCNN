@@ -28,7 +28,7 @@ from mrcnn import utils
 from distutils.version import LooseVersion
 from mrcnn.GPIKerasLayer import GPIKerasLayer, GPIKerasExpandLayer, GPIKerasExpandGraphLayer, GPIKerasForgetLayer
 from mrcnn.callbacks import Evaluate, RedirectModel
-from mrcnn.utils import softmax
+from mrcnn.utils import softmax, norm_boxes, denorm_boxes
 
 assert LooseVersion(tf.__version__) >= LooseVersion("1.3")
 assert LooseVersion(keras.__version__) >= LooseVersion('2.0.8')
@@ -1373,6 +1373,8 @@ def load_image_gt(dataset, config, image_id, augment=False, augmentation=None):
     # if the corresponding mask got cropped out.
     # bbox: [num_instances, (y1, x1, y2, x2)]
     bbox = np.array(dataset.image_info[image_id]['boxes'])
+    # norm_bbox = norm_boxes(bbox, original_shape)
+    # bbox = denorm_boxes(norm_bbox, image.shape)
     # Used for coco and others
     # bbox = utils.extract_bboxes(mask)
 
@@ -1651,16 +1653,19 @@ def generate_random_rois(image_shape, count, gt_class_ids, gt_boxes):
         # To avoid generating boxes with zero area, we generate double what we need and filter out the extra.
         # If we get fewer valid boxes than we need, we loop and try again.
         while True:
-            y1y2 = np.random.randint(r_y1, r_y2, (rois_per_box * 2, 2))
-            x1x2 = np.random.randint(r_x1, r_x2, (rois_per_box * 2, 2))
-            # Filter out zero area boxes
-            threshold = 1
-            y1y2 = y1y2[np.abs(y1y2[:, 0] - y1y2[:, 1]) >=
-                        threshold][:rois_per_box]
-            x1x2 = x1x2[np.abs(x1x2[:, 0] - x1x2[:, 1]) >=
-                        threshold][:rois_per_box]
-            if y1y2.shape[0] == rois_per_box and x1x2.shape[0] == rois_per_box:
-                break
+            try:
+                y1y2 = np.random.randint(r_y1, r_y2, (rois_per_box * 2, 2))
+                x1x2 = np.random.randint(r_x1, r_x2, (rois_per_box * 2, 2))
+                # Filter out zero area boxes
+                threshold = 1
+                y1y2 = y1y2[np.abs(y1y2[:, 0] - y1y2[:, 1]) >=
+                            threshold][:rois_per_box]
+                x1x2 = x1x2[np.abs(x1x2[:, 0] - x1x2[:, 1]) >=
+                            threshold][:rois_per_box]
+                if y1y2.shape[0] == rois_per_box and x1x2.shape[0] == rois_per_box:
+                    break
+            except Exception as e:
+                print("Error in generate_random_rois {}".format(str(e)))
 
         # Sort on axis 1 to ensure x1 <= x2 and y1 <= y2 and then reshape
         # into x1, y1, x2, y2 order
