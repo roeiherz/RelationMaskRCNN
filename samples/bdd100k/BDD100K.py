@@ -294,8 +294,16 @@ class BDD100KDataset(utils.Dataset):
                 labels = []
                 widths = []
                 heights = []
+
+                # Because of square
+                h, w = (720, 1280)
+                max_dim = max(h, w)
+                top_pad = (max_dim - h) // 2
+                left_pad = (max_dim - w) // 2
+
                 for detection in img_data:
-                    box = [detection['y1'], detection['x1'], detection['y2'], detection['x2']]
+                    box = [detection['y1'] + top_pad, detection['x1'] + left_pad,
+                           detection['y2'] + top_pad, detection['x2'] + left_pad]
                     boxes.append(box)
                     label = detection['class']
                     labels.append(label)
