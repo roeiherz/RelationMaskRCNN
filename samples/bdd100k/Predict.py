@@ -109,11 +109,11 @@ if __name__ == '__main__':
         # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180831T1657/mask_rcnn_bdd100k_0160.h5"
         # Resnet101 COCO Model
         # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/Coco/mask_rcnn_coco.h5"
-        # Resnet101 Pretrained COCO Model
-        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180926T1640/mask_rcnn_bdd100k_0032.h5"
-        # Resnet101 Pretrained COCO Model only rois
-        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180928T1743/mask_rcnn_bdd100k_0024.h5"
+        # Resnet101 Pretrained COCO Model only rois fixed
+        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180928T1743/mask_rcnn_bdd100k_0024.h5"
         # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180928T1748/mask_rcnn_bdd100k_0023.h5"
+        # Resnet101 Pretrained bdd100k20180928T1743 Model GPI only rois fixed
+        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180929T1156/mask_rcnn_bdd100k_0025.h5"
         # Resnet101 GPI Model pre trained from COCO
         # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180926T1231/mask_rcnn_bdd100k_0009.h5"
         # Resnet101 GPI Model
