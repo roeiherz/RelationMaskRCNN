@@ -135,14 +135,6 @@ class BDD100KConfig(Config):
     # Number of epochs
     EPOCH = 200
 
-    # Loss weights for more precise optimization. Can be used for R-CNN training setup.
-    LOSS_WEIGHTS = {
-        "rpn_class_loss": 1.,
-        "rpn_bbox_loss": 1.,
-        "mrcnn_class_loss": 10.,
-        "mrcnn_bbox_loss": 1.,
-    }
-
 
 ############################################################
 #  Dataset

@@ -112,7 +112,8 @@ if __name__ == '__main__':
         # Resnet101 Pretrained COCO Model
         # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180926T1640/mask_rcnn_bdd100k_0032.h5"
         # Resnet101 Pretrained COCO Model only rois
-        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180928T1211/mask_rcnn_bdd100k_0001.h5"
+        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180928T1743/mask_rcnn_bdd100k_0024.h5"
+        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180928T1748/mask_rcnn_bdd100k_0023.h5"
         # Resnet101 GPI Model pre trained from COCO
         # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180926T1231/mask_rcnn_bdd100k_0009.h5"
         # Resnet101 GPI Model
@@ -188,7 +189,7 @@ if __name__ == '__main__':
         visualize.save_instances(image, r['rois'], gt_bbox, r['class_ids'], gt_class_id, dataset.class_names,
                                  r['scores'],
                                  ax=ax, title="Predictions_{}".format(info["id"]),
-                                 path="{}/{}_gpi_conf07_attention.jpg".format(args.save_path, info["id"]),
+                                 path="{}/{}_fix.jpg".format(args.save_path, info["id"]),
                                  show_mask=False)
         if r['relation_attention'] is not None:
             visualize.draw_attention(r['rois'], r['relation_attention'], image, info["id"])
