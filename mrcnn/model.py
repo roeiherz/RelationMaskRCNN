@@ -1713,9 +1713,8 @@ def data_generator(dataset, config, shuffle=True, augment=False, augmentation=No
     augmentation: Optional. An imgaug (https://github.com/aleju/imgaug) augmentation.
         For example, passing imgaug.augmenters.Fliplr(0.5) flips images
         right/left 50% of the time.
-    random_rois: If > 0 then generate proposals to be used to train the
-                 network classifier and mask heads. Useful if training
-                 the Mask RCNN part without the RPN.
+    random_rois: If > 0 then generate proposals to be used to train the network classifier and mask heads.
+                Useful if training the Mask RCNN part without the RPN.
     batch_size: How many images to return in each call
     detection_targets: If True, generate detection targets (class IDs, bbox
         deltas, and masks). Typically for debugging or visualizations because
@@ -2366,10 +2365,13 @@ class MaskRCNN():
             layers = layer_regex[layers]
 
         # Data generators
+        random_rois = 0 if self.config.USE_RPN_ROIS else self.config.POST_NMS_ROIS_TRAINING
         train_generator = data_generator(train_dataset, self.config, shuffle=True,
+                                         random_rois=random_rois,
                                          augmentation=augmentation,
                                          batch_size=self.config.BATCH_SIZE)
         val_generator = data_generator(val_dataset, self.config, shuffle=True,
+                                       random_rois=random_rois,
                                        batch_size=self.config.BATCH_SIZE)
 
         # Callbacks
