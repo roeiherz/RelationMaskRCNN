@@ -6,7 +6,7 @@ This is an implementation of a Relation Mask R-CNN based on [3]. In this reposit
 ## Qualitative Results
 <img src="qualitive_results.png" width="750">
 
-<img src="scene_interpretability.png" width="750">
+<img src="scene_interpretability.jpg" width="750">
 <img src="scene_interpretability2.png" width="750">
 
 ## References
