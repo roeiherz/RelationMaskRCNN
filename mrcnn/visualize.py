@@ -25,7 +25,7 @@ from matplotlib.patches import Polygon
 import IPython.display
 
 # Root directory of the project
-from mrcnn.Visualizer import CvColor
+from mrcnn.Visualizer import CvColor, FONT_FACE, PADDING, FONT_THICKNESS
 
 ROOT_DIR = os.path.abspath("../")
 
@@ -121,6 +121,10 @@ def draw_attention(rois, confidences, image, img_id):
             color_map = get_color_map(heat_map)
             color_map[heat_map == 0] = image[heat_map == 0]
             blend = cv2.addWeighted(color_map, 0.6, image, 0.4, 0)
+
+            # Draw current box
+            y1, x1, y2, x2 = roi
+            cv2.rectangle(blend, (x1, y1), (x2, y2), (0, 0, 255), 2)
 
             # tuple(map(lambda x: numpy.float32(sum(x)), zip(pt1, (0, label_pixel_height2), (PADDING, 2 * PADDING))))
             # cv2.PutText(img=blend, text=confidences_per_object[0], org=original_detection_centers[0], color=CvColor.BLACK)
