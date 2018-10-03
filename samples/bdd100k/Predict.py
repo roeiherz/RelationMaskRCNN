@@ -102,25 +102,18 @@ if __name__ == '__main__':
     # Use Local params
     if args.local:
         args.dataset_dir = "/Users/roeiherzig/Datasets/BDD/bdd100k/"
-        # Resnet50 Model
-        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180902T1624/mask_rcnn_bdd100k_0038.h5"
-        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180902T1624/mask_rcnn_bdd100k_0038.h5"
-        # Resnet101 Model
-        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180831T1657/mask_rcnn_bdd100k_0160.h5"
         # Resnet101 COCO Model
         # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/Coco/mask_rcnn_coco.h5"
         # Resnet101 Pretrained COCO Model only rois fixed
-        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180928T1743/mask_rcnn_bdd100k_0024.h5"
+        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180928T1743/mask_rcnn_bdd100k_0160.h5"
+        # different loss
         # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180928T1748/mask_rcnn_bdd100k_0023.h5"
         # Resnet101 Pretrained bdd100k20180928T1743 Model GPI only rois fixed
-        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180929T1156/mask_rcnn_bdd100k_0025.h5"
+        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180928T1743/mask_rcnn_bdd100k_0160.h5"
         # Resnet101 GPI Model pre trained from COCO
         # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180926T1231/mask_rcnn_bdd100k_0009.h5"
-        # Resnet101 GPI Model
-        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180920T1543/mask_rcnn_bdd100k_0164.h5"
-        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180920T1543/mask_rcnn_bdd100k_0175.h5"
-        # args.save_path = "/Users/roeiherzig/RelationMaskRCNN/samples/bdd100k/7_160_resnet101.jpg"
         args.save_path = "/Users/roeiherzig/RelationMaskRCNN/samples/bdd100k"
+        # args.save_path = "/Users/roeiherzig/RelationMaskRCNN/samples/bdd100k/7_160_resnet101.jpg"
 
     # Configurations
     class InferenceConfig(BDD100KConfig):
@@ -168,8 +161,8 @@ if __name__ == '__main__':
 
     # uuids = ["c1f8d9b3-81ee1c2d", "b2db41a2-721e0f4e", "b222c329-5dc8dbf7", "bb8e2033-6c418fc7", "c0625a26-cefa81e9",
     #          "b6d0b9d1-d643d86a", "c18feebb-3e10acea"]
-    # uuids = ["c927d51b-92852659"]
-    uuids = ["b1d0a191-06deb55d"]
+    uuids = ["c927d51b-92852659"]
+    # uuids = ["b1d0a191-06deb55d"]
     ids = get_ids_from_uuids(dataset, uuids)
     # ids = [random.choice(dataset.image_ids)]
     # ids = [1536]
@@ -189,7 +182,7 @@ if __name__ == '__main__':
         visualize.save_instances(image, r['rois'], gt_bbox, r['class_ids'], gt_class_id, dataset.class_names,
                                  r['scores'],
                                  ax=ax, title="Predictions_{}".format(info["id"]),
-                                 path="{}/{}_fix.jpg".format(args.save_path, info["id"]),
+                                 path="{}/{}_{}.jpg".format(args.save_path, args.model.split('/')[-2], info["id"]),
                                  show_mask=False)
         if r['relation_attention'] is not None:
             visualize.draw_attention(r['rois'], r['relation_attention'], image, info["id"])
