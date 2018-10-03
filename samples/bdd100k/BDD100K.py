@@ -82,8 +82,8 @@ class BDD100KConfig(Config):
     # NUM_CLASSES = 80 + 1  # MS-COCO 80 classes + 1 negative
 
     # Relation Networks or no Relation Networks at all
-    GPI_TYPE = "FeatureAttention"
-    # GPI_TYPE = None
+    # GPI_TYPE = "FeatureAttention"
+    GPI_TYPE = None
 
     # Use RPN ROIs or externally generated ROIs for training
     USE_RPN_ROIS = False
@@ -96,9 +96,6 @@ class BDD100KConfig(Config):
     IMAGE_MIN_DIM = 720
     IMAGE_MAX_DIM = 1280
 
-    # ORG_IMAGE_MIN_DIM = 720
-    # ORG_IMAGE_MAX_DIM = 1280
-
     # Number of ROIs per image to feed to classifier/mask heads
     # The Mask RCNN paper uses 512 but often the RPN doesn't generate
     # enough positive proposals to fill this and keep a positive:negative
@@ -107,8 +104,8 @@ class BDD100KConfig(Config):
     # TRAIN_ROIS_PER_IMAGE = 128
 
     # Size of the fully-connected layers in the classification graph
-    FPN_CLASSIF_FC_LAYERS_SIZE = 512
-    # FPN_CLASSIF_FC_LAYERS_SIZE = 1024
+    # FPN_CLASSIF_FC_LAYERS_SIZE = 512
+    FPN_CLASSIF_FC_LAYERS_SIZE = 1024
 
     # Exclude layers
     # EXCLUDE_LAYERS = ['mrcnn_bbox_fc', 'mrcnn_class_logits']
