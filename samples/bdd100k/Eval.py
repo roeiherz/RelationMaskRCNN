@@ -100,10 +100,12 @@ if __name__ == '__main__':
     # Use Local params
     if args.local:
         args.dataset_dir = "/Users/roeiherzig/Datasets/BDD/bdd100k/"
-        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180831T1657/mask_rcnn_bdd100k_0029.h5"
-        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180831T1657/mask_rcnn_bdd100k_0042.h5"
-        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180831T1657/mask_rcnn_bdd100k_0114.h5"
-        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180920T1543/mask_rcnn_bdd100k_0164.h5"
+        # Resnet101 Pretrained COCO Model only rois fixed
+        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180928T1743/mask_rcnn_bdd100k_0160.h5"
+        # different loss
+        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180928T1748/mask_rcnn_bdd100k_0023.h5"
+        # Resnet101 Pretrained bdd100k20180928T1743 Model GPI only rois fixed
+        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180929T1156/mask_rcnn_bdd100k_0061.h5"
         args.save_path = "/Users/roeiherzig/RelationMaskRCNN/samples/bdd100k/"
         args.limit = 500
 
