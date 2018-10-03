@@ -380,7 +380,7 @@ def _get_detections_annotations(dataset, model, save_path=None, config=None, bat
 
         # Run detection
         t = time.time()
-        r_lst = model.detect(image_lst, verbose=0)
+        r_lst = model.detect(image_lst, verbose=0, gpi_type=config.GPI_TYPE)
         t_prediction += (time.time() - t)
 
         for current_index in range(nof_samples_per_batch):
