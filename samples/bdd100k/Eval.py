@@ -54,7 +54,7 @@ if __name__ == '__main__':
 
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='Eval Graph Detector on BDD.')
-    parser.add_argument('--local', help='local debug', action='store', default=False)
+    parser.add_argument('--local', help='local debug', action='store', default=False, type=bool)
     parser.add_argument('--dataset_dir',
                         default=DATASET_DIR,
                         metavar="/path/to/coco/",
@@ -76,6 +76,11 @@ if __name__ == '__main__':
                         metavar="<image count>",
                         help='Images to use for evaluation (default=500)',
                         type=int)
+    parser.add_argument('--shuffle', required=False,
+                        default=False,
+                        metavar="<image count>",
+                        help='Images to use for evaluation (default=500)',
+                        type=bool)
     parser.add_argument('--gpu', required=False,
                         default=0,
                         metavar="0, 1, ...",
@@ -101,12 +106,13 @@ if __name__ == '__main__':
     if args.local:
         args.dataset_dir = "/Users/roeiherzig/Datasets/BDD/bdd100k/"
         # Resnet101 Pretrained COCO Model only rois fixed
-        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180928T1743/mask_rcnn_bdd100k_0160.h5"
+        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180928T1743/mask_rcnn_bdd100k_0160.h5"
         # different loss
         # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180928T1748/mask_rcnn_bdd100k_0023.h5"
         # Resnet101 Pretrained bdd100k20180928T1743 Model GPI only rois fixed
-        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180929T1156/mask_rcnn_bdd100k_0061.h5"
+        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180929T1156/mask_rcnn_bdd100k_0061.h5"
         args.save_path = "/Users/roeiherzig/RelationMaskRCNN/samples/bdd100k/"
+        # args.save_path = None
         args.limit = 500
 
     # Configurations
@@ -148,7 +154,8 @@ if __name__ == '__main__':
 
     # Testing dataset
     dataset = BDD100KDataset()
-    dataset.load_bdd100k(args.dataset_dir, "val", limit=args.limit)
+    dataset.load_bdd100k(args.dataset_dir, "val", limit=args.limit, load_images_flag=not args.local,
+                         shuffle=args.shuffle)
     dataset.prepare()
 
     print("Running BDD100K evaluation on {} images.".format(dataset.size()))
