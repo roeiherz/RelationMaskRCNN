@@ -958,6 +958,7 @@ def fpn_classifier_graph(rois, feature_maps, image_meta, pool_size, num_classes,
 
         shared = KL.Lambda(lambda x: K.squeeze(K.squeeze(x, 3), 2),
                            name="pool_squeeze")(x)
+        shared_single_features = shared
     else:
 
         # # ROI Pooling for Objects
@@ -986,7 +987,7 @@ def fpn_classifier_graph(rois, feature_maps, image_meta, pool_size, num_classes,
                                name="mrcnn_class_conv1_single")(single_pooled)
         x = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn1_single')(x, training=train_bn)
         x = KL.Activation('relu')(x)
-        x = KL.TimeDistributed(KL.Conv2D(fc_layers_size, (pool_size, pool_size), padding="valid"),
+        x = KL.TimeDistributed(KL.Conv2D(fc_layers_size, (1, 1), padding="valid"),
                                name="mrcnn_class_conv2_single")(x)
         x = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn2_single')(x, training=train_bn)
         x = KL.Activation('relu')(x)
@@ -1105,8 +1106,7 @@ def fpn_classifier_graph(rois, feature_maps, image_meta, pool_size, num_classes,
 
     # BBox head
     # [batch, boxes, num_classes * (dy, dx, log(dh), log(dw))]
-    x = KL.TimeDistributed(KL.Dense(num_classes * 4, activation='linear'),
-                           name='mrcnn_bbox_fc')(shared_single_features)
+    x = KL.TimeDistributed(KL.Dense(num_classes * 4, activation='linear'), name='mrcnn_bbox_fc')(shared_single_features)
     # Reshape to [batch, boxes, num_classes, (dy, dx, log(dh), log(dw))]
     s = K.int_shape(x)
     mrcnn_bbox = KL.Reshape((s[1], num_classes, 4), name="mrcnn_bbox")(x)
