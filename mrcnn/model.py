@@ -961,38 +961,38 @@ def fpn_classifier_graph(rois, feature_maps, image_meta, pool_size, num_classes,
         shared_single_features = shared
     else:
 
-        # # ROI Pooling for Objects
-        # # single_pooled - [batch, num_rois, 7, 7, 256]
-        # x = PyramidROIAlign([pool_size, pool_size],
-        #                     name="roi_align_classifier")([rois, image_meta] + feature_maps)
-        # # Two 1024 FC layers (implemented with Conv2D for consistency)
-        # x = KL.TimeDistributed(KL.Conv2D(fc_layers_size, (pool_size, pool_size), padding="valid"),
-        #                        name="mrcnn_class_conv1")(x)
-        # x = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn1')(x, training=train_bn)
-        # x = KL.Activation('relu')(x)
-        # x = KL.TimeDistributed(KL.Conv2D(fc_layers_size, (1, 1)),
-        #                        name="mrcnn_class_conv2")(x)
-        # x = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn2')(x, training=train_bn)
-        # x = KL.Activation('relu')(x)
-        # # shared_single_features - [batch, num_rois, 1024]
-        # shared_single_features = KL.Lambda(lambda x: K.squeeze(K.squeeze(x, 3), 2),
-        #                                    name="pool_squeeze")(x)
-
-        single_pooled = PyramidROIAlign([pool_size, pool_size],
-                                        name="roi_align_object_classifier")(
-            [rois, image_meta] + feature_maps)
-
+        # ROI Pooling for Objects
+        # single_pooled - [batch, num_rois, 7, 7, 256]
+        x = PyramidROIAlign([pool_size, pool_size],
+                            name="roi_align_classifier")([rois, image_meta] + feature_maps)
         # Two 1024 FC layers (implemented with Conv2D for consistency)
         x = KL.TimeDistributed(KL.Conv2D(fc_layers_size, (pool_size, pool_size), padding="valid"),
-                               name="mrcnn_class_conv1_single")(single_pooled)
-        x = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn1_single')(x, training=train_bn)
+                               name="mrcnn_class_conv1")(x)
+        x = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn1')(x, training=train_bn)
         x = KL.Activation('relu')(x)
-        x = KL.TimeDistributed(KL.Conv2D(fc_layers_size, (1, 1), padding="valid"),
-                               name="mrcnn_class_conv2_single")(x)
-        x = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn2_single')(x, training=train_bn)
+        x = KL.TimeDistributed(KL.Conv2D(fc_layers_size, (1, 1)),
+                               name="mrcnn_class_conv2")(x)
+        x = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn2')(x, training=train_bn)
         x = KL.Activation('relu')(x)
         # shared_single_features - [batch, num_rois, 1024]
-        shared_single_features = KL.Lambda(lambda x: K.squeeze(K.squeeze(x, 3), 2), name="pool_squeeze_single")(x)
+        shared_single_features = KL.Lambda(lambda x: K.squeeze(K.squeeze(x, 3), 2),
+                                           name="pool_squeeze")(x)
+
+        # single_pooled = PyramidROIAlign([pool_size, pool_size],
+        #                                 name="roi_align_object_classifier")(
+        #     [rois, image_meta] + feature_maps)
+        #
+        # # Two 1024 FC layers (implemented with Conv2D for consistency)
+        # x = KL.TimeDistributed(KL.Conv2D(fc_layers_size, (pool_size, pool_size), padding="valid"),
+        #                        name="mrcnn_class_conv1_single")(single_pooled)
+        # x = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn1_single')(x, training=train_bn)
+        # x = KL.Activation('relu')(x)
+        # x = KL.TimeDistributed(KL.Conv2D(fc_layers_size, (1, 1), padding="valid"),
+        #                        name="mrcnn_class_conv2_single")(x)
+        # x = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn2_single')(x, training=train_bn)
+        # x = KL.Activation('relu')(x)
+        # # shared_single_features - [batch, num_rois, 1024]
+        # shared_single_features = KL.Lambda(lambda x: K.squeeze(K.squeeze(x, 3), 2), name="pool_squeeze_single")(x)
 
         # Get Union Bounding Boxes for pairwise features - [batch, num_boxes, num_boxes, (y1, x1, y2, x2)]
         pairwise_rois = UnionROISLayer(num_rois=num_rois, name="union_rois")([rois])

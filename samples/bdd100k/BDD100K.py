@@ -105,12 +105,12 @@ class BDD100KConfig(Config):
 
     # Size of the fully-connected layers in the classification graph
     # FPN_CLASSIF_FC_LAYERS_SIZE = 512
-    # FPN_CLASSIF_FC_LAYERS_SIZE = 1024
-    FPN_CLASSIF_FC_LAYERS_SIZE = 1024 if GPI_TYPE is None else 512
+    FPN_CLASSIF_FC_LAYERS_SIZE = 1024
+    # FPN_CLASSIF_FC_LAYERS_SIZE = 1024 if GPI_TYPE is None else 512
 
     # Exclude layers
-    EXCLUDE_LAYERS = ['mrcnn_bbox_fc', 'mrcnn_class_logits']
-    # EXCLUDE_LAYERS = None
+    # EXCLUDE_LAYERS = ['mrcnn_bbox_fc', 'mrcnn_class_logits']
+    EXCLUDE_LAYERS = None
 
     # Percent of positive ROIs used to train classifier/mask heads
     ROI_POSITIVE_RATIO = 0.33
