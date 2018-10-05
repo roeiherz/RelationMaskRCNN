@@ -20,7 +20,7 @@ if __name__ == '__main__':
 
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='Train Graph Detector on BDD.')
-    parser.add_argument('--local', help='input directory of videos', action='store', default=False)
+    parser.add_argument('--local', help='input directory of videos', action='store', default=False, type=bool)
     parser.add_argument('--dataset_dir',
                         default=DATASET_DIR,
                         metavar="/path/to/coco/",
@@ -34,9 +34,15 @@ if __name__ == '__main__':
                         metavar="/path/to/logs/",
                         help='Logs and checkpoints directory (default=logs/)')
     parser.add_argument('--limit', required=False,
-                        default=500,
+                        default=1000,
                         metavar="<image count>",
-                        help='Images to use for evaluation (default=500)')
+                        help='Images to use for evaluation (default=500)',
+                        type=int)
+    parser.add_argument('--shuffle', required=False,
+                        default=True,
+                        metavar="<image count>",
+                        help='Images to use for evaluation (default=500)',
+                        type=bool)
     parser.add_argument('--gpu', required=False,
                         default=0,
                         metavar="0, 1, ...",
@@ -64,12 +70,14 @@ if __name__ == '__main__':
         # args.model = "bdd100k"
         # Resnet101 COCO Model
         # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/Coco/mask_rcnn_coco.h5"
-        # Resnet50 Model
-        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180902T1624/mask_rcnn_bdd100k_0038.h5"
-        # Resnet101 Model
-        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180831T1657/mask_rcnn_bdd100k_0160.h5"
+        # Resnet101 Pretrained COCO Model only rois fixed
+        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180928T1743/mask_rcnn_bdd100k_0160.h5"
+        # different loss
+        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180928T1748/mask_rcnn_bdd100k_0023.h5"
+        # Resnet101 Pretrained bdd100k20180928T1743 Model GPI only rois fixed
+        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180929T1156/mask_rcnn_bdd100k_0061.h5"
         # Resnet101 Pretrained COCO Model
-        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180926T1640/mask_rcnn_bdd100k_0032.h5"
+        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180926T1640/mask_rcnn_bdd100k_0032.h5"
         args.workers = 0
         args.queue_size = 10
 
@@ -117,12 +125,13 @@ if __name__ == '__main__':
 
     # Training dataset. Use the training set and 35K from the validation set, as as in the Mask RCNN paper.
     dataset_train = BDD100KDataset()
-    dataset_train.load_bdd100k(args.dataset_dir, "train")
+    dataset_train.load_bdd100k(args.dataset_dir, "train", load_images_flag=not args.local)
     dataset_train.prepare()
 
     # Validation dataset
     dataset_val = BDD100KDataset()
-    dataset_val.load_bdd100k(args.dataset_dir, "val")
+    dataset_val.load_bdd100k(args.dataset_dir, "val", limit=args.limit, shuffle=args.shuffle,
+                             load_images_flag=not args.local)
     dataset_val.prepare()
 
     # Image Augmentation
