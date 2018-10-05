@@ -242,7 +242,7 @@ def _read_annotations(csv_reader, classes, start_dir_path, load_images_flag=True
 
 class BDD100KDataset(utils.Dataset):
 
-    def load_bdd100k(self, dataset_dir, subset, load_images_flag=True, limit=None):
+    def load_bdd100k(self, dataset_dir, subset, load_images_flag=True, limit=None, shuffle=True):
         """Load a subset of the COCO dataset.
         dataset_dir: The root directory of the BDD100K dataset.
         subset: What to load - train, val
@@ -280,8 +280,8 @@ class BDD100KDataset(utils.Dataset):
                 images_data = images_data.items()
 
                 if limit is not None:
-                    # todo: no shuffle
-                    # random.shuffle(images_data)
+                    if shuffle:
+                        random.shuffle(images_data)
                     images_data = images_data[:limit]
 
             # Add images
@@ -400,11 +400,13 @@ def _get_detections_annotations(dataset, model, save_path=None, config=None, bat
             id = dataset.image_info[image_id]['id']
 
             if save_path is not None:
-                image = dataset.load_image(image_id)
+                # image = dataset.load_image(image_id)
+                image = image_lst[i]
+                gpi = "" if config.GPI_TYPE is None else "_gpi"
                 visualize.save_instances(image, r['rois'], gt_bbox, r['class_ids'], gt_class_id, dataset.class_names,
                                          r['scores'], ax=None, show_mask=False,
-                                         path=os.path.join(save_path, "{}.jpg".format(id)),
-                                         title="Predictions_{}".format(id))
+                                         path=os.path.join(save_path, "{}_{}.jpg".format(id, gpi)),
+                                         title="Predictions_{}_{}".format(id,gpi))
 
             # select detections - [[num_boxes, y1, x1, y2, x2, score, class_id]]
             image_detections = np.concatenate(
