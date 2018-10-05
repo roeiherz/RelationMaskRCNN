@@ -131,7 +131,7 @@ class BDD100KConfig(Config):
     STEPS_PER_EPOCH = 1000
 
     # Number of epochs
-    EPOCH = 200
+    EPOCH = 400
 
 
 ############################################################
