@@ -16,12 +16,11 @@ MODEL_PATH = os.path.join(ROOT_DIR, 'weights')
 # Directory to save logs and model checkpoints, if not provided
 # through the command line argument --logs
 DEFAULT_LOGS_DIR = os.path.join(ROOT_DIR, "logs")
-DEFAULT_DATASET_YEAR = "2017"
 # Dataset path for the data
 DATASET_DIR = "/data/BDD/bdd100k/"
 
 
-def evaluate_bdd(model, dataset, config, iou_threshold=0.5, save_path=None):
+def evaluate_bdd(model, dataset, config, iou_threshold=0.5, save_path=None, batch_size=1):
     """
     Evaluate a given dataset using a given model.
 
@@ -31,6 +30,7 @@ def evaluate_bdd(model, dataset, config, iou_threshold=0.5, save_path=None):
         score_threshold : The score confidence threshold to use for detections.
         max_detections  : The maximum number of detections to use per image.
         save_path       : The path to save images with visualized detections to.
+        batch size       : Effective batch size.
     """
 
     # run evaluation
@@ -39,7 +39,8 @@ def evaluate_bdd(model, dataset, config, iou_threshold=0.5, save_path=None):
         model,
         iou_threshold=iou_threshold,
         save_path=save_path,
-        config=config
+        config=config,
+        batch_size=batch_size
     )
 
     mean_ap = sum(average_precisions.values()) / len(average_precisions)
@@ -71,9 +72,10 @@ if __name__ == '__main__':
                         metavar="/path/to/logs/",
                         help='Logs and checkpoints directory (default=logs/)')
     parser.add_argument('--limit', required=False,
-                        default=500,
+                        default=None,
                         metavar="<image count>",
-                        help='Images to use for evaluation (default=500)')
+                        help='Images to use for evaluation (default=500)',
+                        type=int)
     parser.add_argument('--gpu', required=False,
                         default=0,
                         metavar="0, 1, ...",
@@ -98,25 +100,31 @@ if __name__ == '__main__':
     # Use Local params
     if args.local:
         args.dataset_dir = "/Users/roeiherzig/Datasets/BDD/bdd100k/"
-        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180831T1657/mask_rcnn_bdd100k_0029.h5"
-        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180831T1657/mask_rcnn_bdd100k_0042.h5"
-        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180831T1657/mask_rcnn_bdd100k_0114.h5"
-        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180902T1624/mask_rcnn_bdd100k_0038.h5"
+        # Resnet101 Pretrained COCO Model only rois fixed
+        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180928T1743/mask_rcnn_bdd100k_0160.h5"
+        # different loss
+        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180928T1748/mask_rcnn_bdd100k_0023.h5"
+        # Resnet101 Pretrained bdd100k20180928T1743 Model GPI only rois fixed
+        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180929T1156/mask_rcnn_bdd100k_0061.h5"
         args.save_path = "/Users/roeiherzig/RelationMaskRCNN/samples/bdd100k/"
+        args.limit = 500
 
     # Configurations
     class InferenceConfig(BDD100KConfig):
-        # Set batch size to 1 since we'll be running inference on one image at a time.
+        # Effective Batch Size: Set batch size to 1 since we'll be running inference on one image at a time.
         # Batch size = GPU_COUNT * IMAGES_PER_GPU
         GPU_COUNT = 1
         IMAGES_PER_GPU = 1
         DETECTION_MIN_CONFIDENCE = 0
         POST_NMS_ROIS_INFERENCE = 100
-        BACKBONE = "resnet50"
-
+        EVAL_BATCH_SIZE = 1
 
     config = InferenceConfig()
     config.display()
+
+    # Our current GPI version does not support Multi Batch
+    if config.GPI_TYPE is None:
+        config.EVAL_MAP_IN_TRAINING = 1
 
     # Create model
     model = modellib.MaskRCNN(mode="inference", config=config,
@@ -140,8 +148,8 @@ if __name__ == '__main__':
 
     # Testing dataset
     dataset = BDD100KDataset()
-    dataset.load_bdd100k(args.dataset_dir, "val")
+    dataset.load_bdd100k(args.dataset_dir, "val", limit=args.limit)
     dataset.prepare()
 
     print("Running BDD100K evaluation on {} images.".format(dataset.size()))
-    evaluate_bdd(model, dataset, config, save_path=args.save_path)
+    evaluate_bdd(model, dataset, config, save_path=args.save_path, batch_size=config.EVAL_BATCH_SIZE)

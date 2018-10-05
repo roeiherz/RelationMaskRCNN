@@ -102,15 +102,18 @@ if __name__ == '__main__':
     # Use Local params
     if args.local:
         args.dataset_dir = "/Users/roeiherzig/Datasets/BDD/bdd100k/"
-        # Resnet50 Model
-        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180902T1624/mask_rcnn_bdd100k_0038.h5"
-        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180902T1624/mask_rcnn_bdd100k_0038.h5"
-        # Resnet101 Model
-        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180831T1657/mask_rcnn_bdd100k_0160.h5"
-        # Resnet101 GPI Model
-        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180920T1543/mask_rcnn_bdd100k_0164.h5"
-        # args.save_path = "/Users/roeiherzig/RelationMaskRCNN/samples/bdd100k/7_160_resnet101.jpg"
+        # Resnet101 COCO Model
+        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/Coco/mask_rcnn_coco.h5"
+        # Resnet101 Pretrained COCO Model only rois fixed
+        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180928T1743/mask_rcnn_bdd100k_0160.h5"
+        # different loss
+        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180928T1748/mask_rcnn_bdd100k_0023.h5"
+        # Resnet101 Pretrained bdd100k20180928T1743 Model GPI only rois fixed
+        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180929T1156/mask_rcnn_bdd100k_0061.h5"
+        # Resnet101 GPI Model pre trained from COCO
+        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180926T1231/mask_rcnn_bdd100k_0009.h5"
         args.save_path = "/Users/roeiherzig/RelationMaskRCNN/samples/bdd100k"
+        # args.save_path = "/Users/roeiherzig/RelationMaskRCNN/samples/bdd100k/7_160_resnet101.jpg"
 
     # Configurations
     class InferenceConfig(BDD100KConfig):
@@ -118,8 +121,8 @@ if __name__ == '__main__':
         # Batch size = GPU_COUNT * IMAGES_PER_GPU
         GPU_COUNT = 1
         IMAGES_PER_GPU = 1
-        DETECTION_MIN_CONFIDENCE = 0
-        POST_NMS_ROIS_INFERENCE = 50
+        DETECTION_MIN_CONFIDENCE = 0.0
+        POST_NMS_ROIS_INFERENCE = 100
 
 
     config = InferenceConfig()
@@ -158,9 +161,11 @@ if __name__ == '__main__':
 
     # uuids = ["c1f8d9b3-81ee1c2d", "b2db41a2-721e0f4e", "b222c329-5dc8dbf7", "bb8e2033-6c418fc7", "c0625a26-cefa81e9",
     #          "b6d0b9d1-d643d86a", "c18feebb-3e10acea"]
-    # ids = get_ids_from_uuids(dataset, uuids)
+    uuids = ["c927d51b-92852659"]
+    # uuids = ["b1d0a191-06deb55d"]
+    ids = get_ids_from_uuids(dataset, uuids)
     # ids = [random.choice(dataset.image_ids)]
-    ids = [1536]
+    # ids = [1536]
 
     for image_id in ids:
         image, _, gt_class_id, gt_bbox = modellib.load_image_gt(dataset, config, image_id)
@@ -168,15 +173,21 @@ if __name__ == '__main__':
         print("image ID: {}.{} ({}) {}".format(info["source"], info["id"], image_id,
                                                dataset.image_reference(image_id)))
         # Run object detection
-        results = model.detect([image], verbose=1)
+        results = model.detect([image], verbose=1, gpi_type=config.GPI_TYPE)
 
         # Display results
         ax = get_ax(1)
         r = results[0]
-        image = dataset.load_image(image_id)
-        visualize.save_instances(image, r['rois'], gt_bbox, r['class_ids'], gt_class_id, dataset.class_names, r['scores'],
+        # image = dataset.load_image(image_id)
+        visualize.save_instances(image, r['rois'], gt_bbox, r['class_ids'], gt_class_id, dataset.class_names,
+                                 r['scores'],
                                  ax=ax, title="Predictions_{}".format(info["id"]),
-                                 path="{}/{}.jpg".format(args.save_path, info["id"]),
+                                 path="{}/{}_{}.jpg".format(args.save_path, args.model.split('/')[-2], info["id"]),
                                  show_mask=False)
+        if r['relation_attention'] is not None:
+            visualize.draw_attention(r['rois'], r['relation_attention'], image, info["id"])
+
         print("gt_class_id", gt_class_id)
         print("gt_bbox", gt_bbox)
+
+    print("End Graph Detector Prediction")

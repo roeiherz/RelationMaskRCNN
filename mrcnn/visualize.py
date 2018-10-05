@@ -6,14 +6,17 @@ Copyright (c) 2017 Matterport, Inc.
 Licensed under the MIT License (see LICENSE for details)
 Written by Waleed Abdulla
 """
+import traceback
 
+import cv2
+import numpy
 import os
 import sys
 import logging
 import random
 import itertools
 import colorsys
-
+import scipy
 import numpy as np
 from skimage.measure import find_contours
 import matplotlib.pyplot as plt
@@ -22,6 +25,8 @@ from matplotlib.patches import Polygon
 import IPython.display
 
 # Root directory of the project
+from mrcnn.Visualizer import CvColor, FONT_FACE, PADDING, FONT_THICKNESS
+
 ROOT_DIR = os.path.abspath("../")
 
 # Import Mask RCNN
@@ -81,10 +86,96 @@ def apply_mask(image, mask, color, alpha=0.5):
     return image
 
 
+def get_color_map(image, color=cv2.COLORMAP_JET):
+    return cv2.applyColorMap(cv2.equalizeHist(image), color)
+
+
+def draw_attention(rois, confidences, image, img_id):
+    """
+
+    :param rois:
+    :param confidences:
+    :param image:
+    :param img_id:
+    :return:
+    """
+    image_shape = image.shape
+    original_detection_centers = {}
+    i = 0
+    for roi in rois:
+        try:
+            confidences_per_object = confidences[:, i]
+            heat_map = numpy.zeros(shape=[image_shape[0], image_shape[1], 1], dtype=numpy.float64)
+            original_detection_centers = attention_per_neighb(rois, original_detection_centers,
+                                                              confidences_per_object,
+                                                              heat_map)
+
+            cv2.normalize(heat_map, heat_map, 0, 255, cv2.NORM_MINMAX)
+            heat_map = cv2.convertScaleAbs(heat_map)
+            heat_map_float = heat_map / (heat_map.max() / 16.)
+            heat_map_float = numpy.power(heat_map_float, 2)
+            heat_map_int = cv2.normalize(heat_map_float, None, 0, 255, cv2.NORM_MINMAX)
+            heat_map_int = cv2.convertScaleAbs(heat_map_int)
+            heat_map = heat_map_int
+
+            color_map = get_color_map(heat_map)
+            color_map[heat_map == 0] = image[heat_map == 0]
+            blend = cv2.addWeighted(color_map, 0.6, image, 0.4, 0)
+
+            # Draw current box
+            y1, x1, y2, x2 = roi
+            cv2.rectangle(blend, (x1, y1), (x2, y2), (0, 0, 255), 2)
+
+            # tuple(map(lambda x: numpy.float32(sum(x)), zip(pt1, (0, label_pixel_height2), (PADDING, 2 * PADDING))))
+            # cv2.PutText(img=blend, text=confidences_per_object[0], org=original_detection_centers[0], color=CvColor.BLACK)
+
+            path_save = os.path.join("{0}_att_{1}.jpg".format(img_id, roi))
+            cv2.imwrite(path_save, blend)
+            print("Objects image have been saved in {} \n".format(path_save))
+            i += 1
+
+        except Exception as e:
+            print("Error: {}".format(str(e)))
+            traceback.print_exc()
+
+
+def attention_per_neighb(rois, original_detection_centers, confidences_per_object, heat_map, scale=2):
+    """
+
+    :param rois: [num_instance, (y1, x1, y2, x2)] in image coordinates
+    :param original_detection_centers:
+    :param confidences_per_object:
+    :param heat_map:
+    :param scale:
+    :return:
+    """
+    ind = 0
+    for roi in rois:
+        try:
+            confidence = confidences_per_object[ind]
+            y1, x1, y2, x2 = roi
+            width = x2 - x1
+            height = y2 - y1
+            original_detection_centers[ind] = (x1 + width / 2, y1 + height / 2)
+
+            gaussian = numpy.zeros(shape=[height, width], dtype=numpy.float64)
+            gaussian[height / 2, width / 2] = 1
+            gaussian = scipy.ndimage.filters.gaussian_filter(gaussian, (height / 16., width / 16.))
+            cv2.normalize(gaussian, gaussian, 0, confidence, cv2.NORM_MINMAX)
+            heat_map[y1:y2, x1:x2] += numpy.expand_dims(gaussian, axis=2)
+
+            ind += 1
+        except Exception as e:
+            print("Error: {}".format(str(e)))
+            traceback.print_exc()
+
+    return original_detection_centers
+
+
 def save_instances(image, boxes, gt_boxes, class_ids, gt_class_id, class_names, figsize=(16, 16),
                    scores=None, title="", ax=None, show_mask=True, show_bbox=True, colors=None, captions=None, path=""):
     """
-    boxes: [num_instance, (y1, x1, y2, x2, class_id)] in image coordinates.
+    boxes: [num_instance, (y1, x1, y2, x2)] in image coordinates.
     masks: [height, width, num_instances]
     class_ids: [num_instances]
     class_names: list of class names of the dataset
@@ -138,8 +229,8 @@ def save_instances(image, boxes, gt_boxes, class_ids, gt_class_id, class_names, 
             class_id = class_ids[i]
             score = scores[i] if scores is not None else None
             label = class_names[class_id]
-            x = random.randint(x1, (x1 + x2) // 2)
             caption = "{} {:.3f}".format(label, score) if score else label
+            # caption = "check"
         else:
             caption = captions[i]
         ax.text(x1, y1 + 8, caption,
@@ -162,7 +253,6 @@ def save_instances(image, boxes, gt_boxes, class_ids, gt_class_id, class_names, 
             class_id = gt_class_id[i]
             score = scores[i] if scores is not None else None
             label = class_names[class_id]
-            x = random.randint(x1, (x1 + x2) // 2)
             caption = "{} {:.3f}".format(label, score) if score else label
         else:
             caption = captions[i]

@@ -1052,3 +1052,8 @@ def compute_overlap(a, b):
     intersection = iw * ih
 
     return intersection / ua
+
+
+def softmax(x):
+    """Compute softmax values for each sets of scores in x."""
+    return np.exp(x) / np.sum(np.exp(x), axis=0)

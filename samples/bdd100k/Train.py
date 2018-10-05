@@ -2,7 +2,6 @@ import os
 import sys
 # import imgaug  # https://github.com/aleju/imgaug (pip3 install imgaug)
 import time
-
 # Import Mask RCNN
 
 ROOT_DIR = os.path.abspath("../../")
@@ -63,10 +62,14 @@ if __name__ == '__main__':
     if args.local:
         args.dataset_dir = "/Users/roeiherzig/Datasets/BDD/bdd100k/"
         # args.model = "bdd100k"
+        # Resnet101 COCO Model
+        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/Coco/mask_rcnn_coco.h5"
         # Resnet50 Model
         # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180902T1624/mask_rcnn_bdd100k_0038.h5"
         # Resnet101 Model
-        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180831T1657/mask_rcnn_bdd100k_0160.h5"
+        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180831T1657/mask_rcnn_bdd100k_0160.h5"
+        # Resnet101 Pretrained COCO Model
+        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180926T1640/mask_rcnn_bdd100k_0032.h5"
         args.workers = 0
         args.queue_size = 10
 

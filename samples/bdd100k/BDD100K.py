@@ -27,6 +27,8 @@ Usage: import the module (see Jupyter notebooks for examples), or run from
     python3 coco.py evaluate --dataset=/path/to/coco/ --model=last
 """
 import csv
+import random
+
 import cv2
 import os
 import sys
@@ -39,7 +41,6 @@ from six import raise_from
 
 # Root directory of the project
 from mrcnn import utils
-
 ROOT_DIR = os.path.abspath("../../")
 
 # Import Mask RCNN
@@ -73,35 +74,39 @@ class BDD100KConfig(Config):
     # Run eval of map at each end of epoch
     EVAL_MAP_IN_TRAINING = False
 
-    # We use a GPU with 12GB memory, which can fit two images.
-    # Adjust down if you use a smaller GPU.
-    IMAGES_PER_GPU = 1
-
     # Uncomment to train on 8 GPUs (default is 1)
     # GPU_COUNT = 8
 
     # Number of classes
-    NUM_CLASSES = 11  # BDD100K 10 classes + 1 negative
+    NUM_CLASSES = 10 + 1  # BDD100K 10 classes + 1 negative
+    # NUM_CLASSES = 80 + 1  # MS-COCO 80 classes + 1 negative
 
     # Relation Networks or no Relation Networks at all
-    GPI_TYPE = "FeatureAttention"
-    # GPI_TYPE = None
+    # GPI_TYPE = "FeatureAttention"
+    GPI_TYPE = None
+
+    # Use RPN ROIs or externally generated ROIs for training
+    USE_RPN_ROIS = False
 
     # Train or not backbone weights
-    TRAINABLE_BACKBONE = True
-    TRAINABLE_FPN = True
-    TRAINABLE_RPN = True
+    TRAINABLE_BACKBONE = False
+    TRAINABLE_FPN = False
+    TRAINABLE_RPN = False
+
+    IMAGE_MIN_DIM = 720
+    IMAGE_MAX_DIM = 1280
 
     # Number of ROIs per image to feed to classifier/mask heads
     # The Mask RCNN paper uses 512 but often the RPN doesn't generate
     # enough positive proposals to fill this and keep a positive:negative
     # ratio of 1:3. You can increase the number of proposals by adjusting the RPN NMS threshold.
-    # TRAIN_ROIS_PER_IMAGE = 32
-    TRAIN_ROIS_PER_IMAGE = 200
+    TRAIN_ROIS_PER_IMAGE = 20
+    # TRAIN_ROIS_PER_IMAGE = 128
 
     # Size of the fully-connected layers in the classification graph
-    FPN_CLASSIF_FC_LAYERS_SIZE = 512
+    # FPN_CLASSIF_FC_LAYERS_SIZE = 512
     # FPN_CLASSIF_FC_LAYERS_SIZE = 1024
+    FPN_CLASSIF_FC_LAYERS_SIZE = 1024 if GPI_TYPE is None else 512
 
     # Exclude layers
     # EXCLUDE_LAYERS = ['mrcnn_bbox_fc', 'mrcnn_class_logits']
@@ -226,7 +231,9 @@ def _read_annotations(csv_reader, classes, start_dir_path, load_images_flag=True
 
         # check if the current class name is correctly present
         if class_name not in classes:
-            raise ValueError('line {}: unknown class name: \'{}\' (classes: {})'.format(line, class_name, classes))
+            # raise ValueError('line {}: unknown class name: \'{}\' (classes: {})'.format(line, class_name, classes))
+            print('line {}: unknown class name: \'{}\' (classes: {})'.format(line, class_name, classes))
+            continue
 
         result[img_file].append({'x1': x1, 'x2': x2, 'y1': y1, 'y2': y2, 'class': class_name, 'width': width,
                                  'height': height})
@@ -235,11 +242,12 @@ def _read_annotations(csv_reader, classes, start_dir_path, load_images_flag=True
 
 class BDD100KDataset(utils.Dataset):
 
-    def load_bdd100k(self, dataset_dir, subset, load_images_flag=True):
+    def load_bdd100k(self, dataset_dir, subset, load_images_flag=True, limit=None):
         """Load a subset of the COCO dataset.
         dataset_dir: The root directory of the BDD100K dataset.
         subset: What to load - train, val
         load_images_flag: Load images before read_annotations flag
+        limit: int of limit of examples to validate
         """
 
         # Class mapping
@@ -248,6 +256,10 @@ class BDD100KDataset(utils.Dataset):
             # parse the provided class file
             with _open_for_csv(mappings_csv) as file:
                 class_ids = _read_classes(csv.reader(file, delimiter=','))
+                # from pycocotools.coco import COCO
+                # coco = COCO("/Users/roeiherzig/Datasets/MSCoco/annotations/instances_{}{}.json".format(subset, 2017))
+                # class_ids = sorted(coco.getCatIds())
+                # class_ids = [coco.loadCats(label)[0]["name"] for label in class_ids]
 
             # Add classes
             for index, label in enumerate(class_ids):
@@ -265,16 +277,32 @@ class BDD100KDataset(utils.Dataset):
                                                 start_dir_path=dataset_dir[:dataset_dir.find("BDD")],
                                                 load_images_flag=load_images_flag)
 
+                images_data = images_data.items()
+
+                if limit is not None:
+                    # todo: no shuffle
+                    # random.shuffle(images_data)
+                    images_data = images_data[:limit]
+
             # Add images
-            for index, img_path in enumerate(images_data):
-                img_data = images_data[img_path]
+            for index, data in enumerate(images_data):
+                img_path = data[0]
+                img_data = data[1]
                 img_id = os.path.basename(img_path).split('.')[0]
                 boxes = []
                 labels = []
                 widths = []
                 heights = []
+
+                # Because of square
+                h, w = (720, 1280)
+                max_dim = max(h, w)
+                top_pad = (max_dim - h) // 2
+                left_pad = (max_dim - w) // 2
+
                 for detection in img_data:
-                    box = [detection['y1'], detection['x1'], detection['y2'], detection['x2']]
+                    box = [detection['y1'] + top_pad, detection['x1'] + left_pad,
+                           detection['y2'] + top_pad, detection['x2'] + left_pad]
                     boxes.append(box)
                     label = detection['class']
                     labels.append(label)
@@ -297,17 +325,14 @@ class BDD100KDataset(utils.Dataset):
     def image_reference(self, image_id):
         """Return the path of the image."""
         info = self.image_info[image_id]
-        if info["source"] == "balloon":
-            return info["path"]
-        else:
-            super(self.__class__, self).image_reference(image_id)
+        return info["path"]
 
 
 ############################################################
 #  Nexar Evaluation
 ############################################################
 
-def _get_detections_annotations(dataset, model, save_path=None, config=None):
+def _get_detections_annotations(dataset, model, save_path=None, config=None, batch_size=1):
     """
     Get the detections from the model using the generator.
     The result is a list of lists such that the size is:
@@ -324,43 +349,81 @@ def _get_detections_annotations(dataset, model, save_path=None, config=None):
     all_annotations = [[None for i in range(dataset.num_labels())] for j in range(dataset.size())]
     image_ids = dataset.image_ids
 
+    size = len(image_ids)
     t_prediction = 0
     t_start = time.time()
-    for i, image_id in enumerate(image_ids):
-        # Load image
-        image, _, gt_class_id, gt_bbox = modellib.load_image_gt(dataset, config, image_id)
+
+    # Decide batches per epoch
+    if size % batch_size == 0:
+        num_of_batches_per_epoch = size / batch_size
+    else:
+        num_of_batches_per_epoch = size / batch_size + 1
+
+    for batch in range(num_of_batches_per_epoch):
+        # Define number of samples per batch
+        if batch_size * (batch + 1) >= size:
+            nof_samples_per_batch = size - batch_size * batch
+        else:
+            nof_samples_per_batch = batch_size
+
+        image_lst = []
+        gt_class_id_lst = []
+        gt_bbox_lst = []
+        for current_index in range(nof_samples_per_batch):
+            # Get index from files
+            ind = batch * batch_size + current_index
+            image_id = image_ids[ind]
+            # Get data
+            image, _, gt_class_id, gt_bbox = modellib.load_image_gt(dataset, config, image_id)
+            # Append
+            image_lst.append(image)
+            gt_class_id_lst.append(gt_class_id)
+            gt_bbox_lst.append(gt_bbox)
 
         # Run detection
         t = time.time()
-        r = model.detect([image], verbose=0)[0]
+        r_lst = model.detect(image_lst, verbose=0, gpi_type=config.GPI_TYPE)
         t_prediction += (time.time() - t)
 
-        image_boxes = r["rois"]
-        image_labels = r["class_ids"]
-        image_scores = r["scores"]
+        for current_index in range(nof_samples_per_batch):
+            # Get index from files
+            i = batch * batch_size + current_index
+            # Get data
+            image_id = image_ids[i]
+            gt_class_id = gt_class_id_lst[current_index]
+            gt_bbox = gt_bbox_lst[current_index]
+            r = r_lst[current_index]
 
-        if save_path is not None:
-            image = dataset.load_image(image_id)
-            visualize.save_instances(image, r['rois'], gt_bbox, r['class_ids'], gt_class_id, dataset.class_names,
-                                     r['scores'], ax=None, path=os.path.join(save_path, "{}.jpg".format(i)),
-                                     show_mask=False)
+            image_boxes = r["rois"]
+            image_labels = r["class_ids"]
+            image_scores = r["scores"]
+            id = dataset.image_info[image_id]['id']
 
-        # select detections - [[num_boxes, y1, x1, y2, x2, score, class_id]]
-        image_detections = np.concatenate(
-            [image_boxes, np.expand_dims(image_scores, axis=1), np.expand_dims(image_labels, axis=1)], axis=1)
+            if save_path is not None:
+                image = dataset.load_image(image_id)
+                visualize.save_instances(image, r['rois'], gt_bbox, r['class_ids'], gt_class_id, dataset.class_names,
+                                         r['scores'], ax=None, show_mask=False,
+                                         path=os.path.join(save_path, "{}.jpg".format(id)),
+                                         title="Predictions_{}".format(id))
 
-        # load the annotations - [[num_boxes, y1, x1, y2, x2, class_id]]
-        annotations = np.concatenate([gt_bbox, np.expand_dims(gt_class_id, axis=1)], axis=1)
+            # select detections - [[num_boxes, y1, x1, y2, x2, score, class_id]]
+            image_detections = np.concatenate(
+                [image_boxes, np.expand_dims(image_scores, axis=1), np.expand_dims(image_labels, axis=1)], axis=1)
 
-        # copy detections to all_detections
-        for label in range(dataset.num_labels()):
-            all_detections[i][label] = image_detections[image_detections[:, -1] == label, :-1]
+            # load the annotations - [[num_boxes, y1, x1, y2, x2, class_id]]
+            annotations = np.concatenate([gt_bbox, np.expand_dims(gt_class_id, axis=1)], axis=1)
 
-        # copy detections to all_annotations
-        for label in range(dataset.num_labels()):
-            all_annotations[i][label] = annotations[annotations[:, 4] == label, :4].copy()
+            # copy detections to all_detections
+            for label in range(dataset.num_labels()):
+                all_detections[i][label] = image_detections[image_detections[:, -1] == label, :-1]
 
-        print('{}/{}'.format(i + 1, dataset.size()))
+            # copy detections to all_annotations
+            for label in range(dataset.num_labels()):
+                all_annotations[i][label] = annotations[annotations[:, 4] == label, :4].copy()
+
+            # print('{}/{}'.format(i + 1, dataset.size()))
+
+        print('Batch {}/{}'.format(batch + 1, num_of_batches_per_epoch))
 
     print("Prediction time: {}. Average {}/image".format(t_prediction, t_prediction / len(image_ids)))
     print("Total time: ", time.time() - t_start)
@@ -372,7 +435,8 @@ def evaluate(
         model,
         iou_threshold=0.5,
         save_path=None,
-        config=None):
+        config=None,
+        batch_size=1):
     """
     Evaluate a given dataset using a given model.
 
@@ -383,11 +447,13 @@ def evaluate(
         score_threshold : The score confidence threshold to use for detections.
         max_detections  : The maximum number of detections to use per image.
         save_path       : The path to save images with visualized detections to.
+        batch size       : Effective batch size.
     # Returns
         A dict mapping class names to mAP scores.
     """
     # gather all detections and annotations
-    all_detections, all_annotations = _get_detections_annotations(dataset, model, save_path=save_path, config=config)
+    all_detections, all_annotations = _get_detections_annotations(dataset, model, save_path=save_path, config=config,
+                                                                  batch_size=batch_size)
     average_precisions = {}
 
     # process detections and annotations
