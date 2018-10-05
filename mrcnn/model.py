@@ -959,17 +959,36 @@ def fpn_classifier_graph(rois, feature_maps, image_meta, pool_size, num_classes,
         shared = KL.Lambda(lambda x: K.squeeze(K.squeeze(x, 3), 2),
                            name="pool_squeeze")(x)
     else:
-        # ROI Pooling for Objects
-        # single_pooled - [batch, num_rois, 7, 7, 256]
+
+        # # ROI Pooling for Objects
+        # # single_pooled - [batch, num_rois, 7, 7, 256]
+        # x = PyramidROIAlign([pool_size, pool_size],
+        #                     name="roi_align_classifier")([rois, image_meta] + feature_maps)
+        # # Two 1024 FC layers (implemented with Conv2D for consistency)
+        # x = KL.TimeDistributed(KL.Conv2D(fc_layers_size, (pool_size, pool_size), padding="valid"),
+        #                        name="mrcnn_class_conv1")(x)
+        # x = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn1')(x, training=train_bn)
+        # x = KL.Activation('relu')(x)
+        # x = KL.TimeDistributed(KL.Conv2D(fc_layers_size, (1, 1)),
+        #                        name="mrcnn_class_conv2")(x)
+        # x = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn2')(x, training=train_bn)
+        # x = KL.Activation('relu')(x)
+        # # shared_single_features - [batch, num_rois, 1024]
+        # shared_single_features = KL.Lambda(lambda x: K.squeeze(K.squeeze(x, 3), 2),
+        #                                    name="pool_squeeze")(x)
+
         single_pooled = PyramidROIAlign([pool_size, pool_size],
                                         name="roi_align_object_classifier")(
             [rois, image_meta] + feature_maps)
 
-        # shared_single_features = KL.GlobalAveragePooling2D(name='global_avg_pool')(single_pooled)
         # Two 1024 FC layers (implemented with Conv2D for consistency)
         x = KL.TimeDistributed(KL.Conv2D(fc_layers_size, (pool_size, pool_size), padding="valid"),
                                name="mrcnn_class_conv1_single")(single_pooled)
         x = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn1_single')(x, training=train_bn)
+        x = KL.Activation('relu')(x)
+        x = KL.TimeDistributed(KL.Conv2D(fc_layers_size, (pool_size, pool_size), padding="valid"),
+                               name="mrcnn_class_conv2_single")(x)
+        x = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn2_single')(x, training=train_bn)
         x = KL.Activation('relu')(x)
         # shared_single_features - [batch, num_rois, 1024]
         shared_single_features = KL.Lambda(lambda x: K.squeeze(K.squeeze(x, 3), 2), name="pool_squeeze_single")(x)
@@ -1087,7 +1106,7 @@ def fpn_classifier_graph(rois, feature_maps, image_meta, pool_size, num_classes,
     # BBox head
     # [batch, boxes, num_classes * (dy, dx, log(dh), log(dw))]
     x = KL.TimeDistributed(KL.Dense(num_classes * 4, activation='linear'),
-                           name='mrcnn_bbox_fc')(shared)
+                           name='mrcnn_bbox_fc')(shared_single_features)
     # Reshape to [batch, boxes, num_classes, (dy, dx, log(dh), log(dw))]
     s = K.int_shape(x)
     mrcnn_bbox = KL.Reshape((s[1], num_classes, 4), name="mrcnn_bbox")(x)
