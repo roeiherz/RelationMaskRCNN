@@ -89,12 +89,6 @@ if __name__ == '__main__':
                         help='Number of workers',
                         type=int)
     args = parser.parse_args()
-    print("Model: ", args.model)
-    print("Dataset dir: ", args.dataset_dir)
-    print("Logs: ", args.logs)
-    print("GPU: ", args.gpu)
-    print("Number of Workers: ", args.workers)
-    print("Save Path: ", args.save_path)
 
     # Define GPU training
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
@@ -114,6 +108,16 @@ if __name__ == '__main__':
         # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180926T1231/mask_rcnn_bdd100k_0009.h5"
         args.save_path = "/Users/roeiherzig/RelationMaskRCNN/samples/bdd100k"
         # args.save_path = "/Users/roeiherzig/RelationMaskRCNN/samples/bdd100k/7_160_resnet101.jpg"
+
+    print("Model: ", args.model)
+    print("Dataset dir: ", args.dataset_dir)
+    print("Logs: ", args.logs)
+    print("GPU: ", args.gpu)
+    print("Number of Workers: ", args.workers)
+    print("Save Path: ", args.save_path)
+    print("Shuffle: ", args.shuffle)
+    print("Local: ", args.local)
+    print("Limit: ", args.limit)
 
     # Configurations
     class InferenceConfig(BDD100KConfig):

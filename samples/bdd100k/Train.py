@@ -87,6 +87,9 @@ if __name__ == '__main__':
     print("GPU: ", args.gpu)
     print("Number of Workers: ", args.workers)
     print("Number of Queue Size: ", args.queue_size)
+    print("Shuffle: ", args.shuffle)
+    print("Local: ", args.local)
+    print("Limit: ", args.limit)
 
     # Define GPU training
     # os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
