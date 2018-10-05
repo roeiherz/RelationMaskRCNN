@@ -161,11 +161,12 @@ if __name__ == '__main__':
 
     # uuids = ["c1f8d9b3-81ee1c2d", "b2db41a2-721e0f4e", "b222c329-5dc8dbf7", "bb8e2033-6c418fc7", "c0625a26-cefa81e9",
     #          "b6d0b9d1-d643d86a", "c18feebb-3e10acea"]
-    uuids = ["c927d51b-92852659"]
+    # uuids = ["c927d51b-92852659"]
     # uuids = ["b1d0a191-06deb55d"]
-    ids = get_ids_from_uuids(dataset, uuids)
+    # ids = get_ids_from_uuids(dataset, uuids)
     # ids = [random.choice(dataset.image_ids)]
-    # ids = [1536]
+    # ids = [9306]
+    ids = [8343]
 
     for image_id in ids:
         image, _, gt_class_id, gt_bbox = modellib.load_image_gt(dataset, config, image_id)
@@ -178,11 +179,12 @@ if __name__ == '__main__':
         # Display results
         ax = get_ax(1)
         r = results[0]
-        # image = dataset.load_image(image_id)
+        gpi = "" if config.GPI_TYPE is None else "_gpi"
         visualize.save_instances(image, r['rois'], gt_bbox, r['class_ids'], gt_class_id, dataset.class_names,
                                  r['scores'],
-                                 ax=ax, title="Predictions_{}".format(info["id"]),
-                                 path="{}/{}_{}.jpg".format(args.save_path, args.model.split('/')[-2], info["id"]),
+                                 ax=ax, title="Predictions_{}_{}".format(info["id"], gpi),
+                                 path="{}/{}_{}_{}.jpg".format(args.save_path, args.model.split('/')[-2], info["id"],
+                                                               gpi),
                                  show_mask=False)
         if r['relation_attention'] is not None:
             visualize.draw_attention(r['rois'], r['relation_attention'], image, info["id"])
