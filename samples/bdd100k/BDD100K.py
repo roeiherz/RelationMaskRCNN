@@ -89,9 +89,9 @@ class BDD100KConfig(Config):
     USE_RPN_ROIS = True
 
     # Train or not backbone weights
-    TRAINABLE_BACKBONE = False
-    TRAINABLE_FPN = False
-    TRAINABLE_RPN = False
+    TRAINABLE_BACKBONE = True
+    TRAINABLE_FPN = True
+    TRAINABLE_RPN = True
 
     IMAGE_MIN_DIM = 256
     IMAGE_MAX_DIM = 256
