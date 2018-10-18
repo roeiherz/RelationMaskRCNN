@@ -75,7 +75,7 @@ if __name__ == '__main__':
                         metavar="/path/to/logs/",
                         help='Logs and checkpoints directory (default=logs/)')
     parser.add_argument('--limit', required=False,
-                        default=500,
+                        default=None,
                         metavar="<image count>",
                         help='Images to use for evaluation (default=500)')
     parser.add_argument('--gpu', required=False,
@@ -115,7 +115,6 @@ if __name__ == '__main__':
     print("GPU: ", args.gpu)
     print("Number of Workers: ", args.workers)
     print("Save Path: ", args.save_path)
-    print("Shuffle: ", args.shuffle)
     print("Local: ", args.local)
     print("Limit: ", args.limit)
 

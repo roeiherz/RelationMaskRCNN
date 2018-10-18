@@ -69,7 +69,7 @@ class BDD100KConfig(Config):
     """
     # Give the configuration a recognizable name
     NAME = "bdd100k"
-    BACKBONE = "resnet101"
+    BACKBONE = "resnet50"
 
     # Run eval of map at each end of epoch
     EVAL_MAP_IN_TRAINING = False
@@ -82,19 +82,19 @@ class BDD100KConfig(Config):
     # NUM_CLASSES = 80 + 1  # MS-COCO 80 classes + 1 negative
 
     # Relation Networks or no Relation Networks at all
-    GPI_TYPE = "FeatureAttention"
-    # GPI_TYPE = None
+    # GPI_TYPE = "FeatureAttention"
+    GPI_TYPE = None
 
     # Use RPN ROIs or externally generated ROIs for training
-    USE_RPN_ROIS = False
+    USE_RPN_ROIS = True
 
     # Train or not backbone weights
     TRAINABLE_BACKBONE = False
     TRAINABLE_FPN = False
     TRAINABLE_RPN = False
 
-    IMAGE_MIN_DIM = 720
-    IMAGE_MAX_DIM = 1280
+    IMAGE_MIN_DIM = 256
+    IMAGE_MAX_DIM = 256
 
     # Number of ROIs per image to feed to classifier/mask heads
     # The Mask RCNN paper uses 512 but often the RPN doesn't generate
@@ -294,15 +294,16 @@ class BDD100KDataset(utils.Dataset):
                 widths = []
                 heights = []
 
-                # Because of square
-                h, w = (720, 1280)
-                max_dim = max(h, w)
-                top_pad = (max_dim - h) // 2
-                left_pad = (max_dim - w) // 2
+                # # Because of square
+                # h, w = (720, 1280)
+                # max_dim = max(h, w)
+                # top_pad = (max_dim - h) // 2
+                # left_pad = (max_dim - w) // 2
 
                 for detection in img_data:
-                    box = [detection['y1'] + top_pad, detection['x1'] + left_pad,
-                           detection['y2'] + top_pad, detection['x2'] + left_pad]
+                    # box = [detection['y1'] + top_pad, detection['x1'] + left_pad,
+                    #        detection['y2'] + top_pad, detection['x2'] + left_pad]
+                    box = [detection['y1'], detection['x1'], detection['y2'], detection['x2']]
                     boxes.append(box)
                     label = detection['class']
                     labels.append(label)

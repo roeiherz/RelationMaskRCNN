@@ -1377,6 +1377,23 @@ def load_image_gt(dataset, config, image_id, augment=False, augmentation=None):
     # bbox = denorm_boxes(norm_bbox, image.shape)
     # Used for coco and others
     # bbox = utils.extract_bboxes(mask)
+    # todo: make sure its working
+    # The shape before padding
+    image_shape = tuple(np.subtract(image.shape[:2], (padding[0][0] + padding[0][1], 0)))
+    window = utils.norm_boxes(window, image_shape)
+    bbox = utils.norm_boxes(bbox, original_shape[:2])
+    wy1, wx1, wy2, wx2 = window
+    shift = np.array([wy1, wx1, wy1, wx1])
+    wh = wy2 - wy1  # window height
+    ww = wx2 - wx1  # window width
+    scale_bb = np.array([wh, ww, wh, ww])
+    # Convert boxes to normalized coordinates on the window
+    bbox = np.divide(bbox - shift, scale_bb)
+    # Convert boxes to pixel coordinates on the original image
+    bbox = utils.denorm_boxes(bbox, image_shape)
+    # Adding the padding
+    bbox[:, 0] += padding[0][0] * 2
+    bbox[:, 2] += padding[0][0] * 2
 
     # Active classes
     # Different datasets have different classes, so track the
