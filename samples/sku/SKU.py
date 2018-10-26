@@ -92,8 +92,8 @@ class SKUConfig(Config):
     TRAINABLE_FPN = True
     TRAINABLE_RPN = True
 
-    IMAGE_MIN_DIM = 1024
-    IMAGE_MAX_DIM = 1024
+    IMAGE_MIN_DIM = 720
+    IMAGE_MAX_DIM = 1280
     IMAGE_RESIZE_MODE = None
 
     # Number of ROIs per image to feed to classifier/mask heads
@@ -257,9 +257,9 @@ def _read_images(base_dir, load_images_flag=False):
     for project in dirs:
 
         # todo: for debug purposes
-        # if project != 'ccus':
+        # if project != 'rinielsenus':
         #     continue
-        # project_imgs = ["33190.jpg"]
+        # project_imgs = ["206875.jpg"]
 
         project_imgs = os.listdir(os.path.join(base_dir, project))
         i = 0
