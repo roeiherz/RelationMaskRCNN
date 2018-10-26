@@ -27,7 +27,7 @@ if __name__ == '__main__':
                         metavar="/path/to/coco/",
                         help='Directory of the Nexars Incidents dataset')
     parser.add_argument('--model',
-                        default="trax",
+                        default="sku",
                         metavar="/path/to/weights.h5",
                         help="Path to weights .h5 file or 'coco'")
     parser.add_argument('--logs', required=False,
@@ -90,7 +90,7 @@ if __name__ == '__main__':
     model = modellib.MaskRCNN(mode="training", config=config, model_dir=args.logs)
 
     # Select weights file to load
-    if args.model.lower() == "sku":
+    if args.model.lower() == "coco":
         model_path = model.get_imagenet_weights()
     elif args.model.lower() == "last":
         # Find last trained weights
