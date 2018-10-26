@@ -152,6 +152,8 @@ if __name__ == '__main__':
     dataset.prepare()
 
     uuids = ["rnbde/45308.jpg"]
+    # uuids = ["pngamerica/96150.jpg"]
+    # uuids = ["ccus/33190.jpg"]
     ids = get_ids_from_uuids(dataset, uuids)
     # ids = [random.choice(dataset.image_ids)]
     # ids = [8343]

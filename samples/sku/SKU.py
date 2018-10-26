@@ -128,7 +128,7 @@ class SKUConfig(Config):
     STEPS_PER_EPOCH = 1000
 
     # Number of epochs
-    EPOCH = 400
+    EPOCH = 200
 
 
 ############################################################
@@ -255,6 +255,11 @@ def _read_images(base_dir, load_images_flag=False):
     # Only dirs
     dirs = [fl for fl in os.listdir(base_dir) if "." not in fl]
     for project in dirs:
+
+        # todo: for debug purposes
+        # if project != 'ccus':
+        #     continue
+        # project_imgs = ["33190.jpg"]
 
         project_imgs = os.listdir(os.path.join(base_dir, project))
         i = 0
