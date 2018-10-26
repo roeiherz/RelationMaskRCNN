@@ -470,7 +470,7 @@ def resize_image(image, min_dim=None, max_dim=None, min_scale=None, mode="square
         scale = min_scale
 
     # Does it exceed max dim?
-    if max_dim and mode == "square":
+    if max_dim:
         image_max = max(h, w)
         if round(image_max * scale) > max_dim:
             scale = max_dim / float(image_max)
@@ -520,8 +520,8 @@ def resize_image(image, min_dim=None, max_dim=None, min_scale=None, mode="square
         crop = (y, x, min_dim, min_dim)
         image = image[y:y + min_dim, x:x + min_dim]
         window = (0, 0, min_dim, min_dim)
-    else:
-        raise Exception("Mode {} not supported".format(mode))
+    # else:
+    #     raise Exception("Mode {} not supported".format(mode))
     return image.astype(image_dtype), window, scale, padding, crop
 
 

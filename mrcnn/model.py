@@ -1372,11 +1372,24 @@ def load_image_gt(dataset, config, image_id, augment=False, augmentation=None):
     # Bounding boxes. Note that some boxes might be all zeros
     # if the corresponding mask got cropped out.
     # bbox: [num_instances, (y1, x1, y2, x2)]
-    bbox = np.array(dataset.image_info[image_id]['boxes'])
-    # norm_bbox = norm_boxes(bbox, original_shape)
-    # bbox = denorm_boxes(norm_bbox, image.shape)
-    # Used for coco and others
-    # bbox = utils.extract_bboxes(mask)
+    bbox = np.array(dataset.image_info[image_id]['boxes']) * scale
+    # todo: make sure its working
+    # # The shape before padding
+    # image_shape = tuple(np.subtract(image.shape[:2], (padding[0][0] + padding[0][1], 0)))
+    # window = utils.norm_boxes(window, image_shape)
+    # bbox = utils.norm_boxes(bbox, original_shape[:2])
+    # wy1, wx1, wy2, wx2 = window
+    # shift = np.array([wy1, wx1, wy1, wx1])
+    # wh = wy2 - wy1  # window height
+    # ww = wx2 - wx1  # window width
+    # scale_bb = np.array([wh, ww, wh, ww])
+    # # Convert boxes to normalized coordinates on the window
+    # bbox = np.divide(bbox - shift, scale_bb)
+    # # Convert boxes to pixel coordinates on the original image
+    # bbox = utils.denorm_boxes(bbox, image_shape)
+    # # Adding the padding
+    # bbox[:, 0] += padding[0][0] * 2
+    # bbox[:, 2] += padding[0][0] * 2
 
     # Active classes
     # Different datasets have different classes, so track the
@@ -1774,17 +1787,6 @@ def data_generator(dataset, config, shuffle=True, augment=False, augmentation=No
             # RPN Targets
             rpn_match, rpn_bbox = build_rpn_targets(image.shape, anchors,
                                                     gt_class_ids, gt_boxes, config)
-
-            # import matplotlib.pyplot as plt
-            # _, ax = plt.subplots(1, 1, figsize=(16 * 1, 16 * 1))
-            # from mrcnn import visualize
-            # tt_boxes = utils.denorm_boxes(rpn_bbox, image.shape[:2])
-            # image = dataset.load_image(image_id)
-            # visualize.save_instances(image, tt_boxes, gt_boxes, gt_class_ids, gt_class_ids, dataset.class_names,
-            #                          scores=None,
-            #                          ax=ax, title="Predictions",
-            #                          path="test.jpg",
-            #                          show_mask=False, captions=None)
 
             # Mask R-CNN Targets
             if random_rois:
