@@ -1339,7 +1339,6 @@ def load_image_gt(dataset, config, image_id, augment=False, augmentation=None):
     bbox: [instance_count, (y1, x1, y2, x2)]
     """
     # Load image and mask
-    print("Image_ID: {}".format(dataset.image_info[image_id]['path']))
     image = dataset.load_image(image_id)
     class_ids = np.array([dataset.class_names.index(label) for label in dataset.image_info[image_id]['labels']])
     # Used for coco and others
