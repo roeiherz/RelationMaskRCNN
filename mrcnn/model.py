@@ -1374,9 +1374,14 @@ def load_image_gt(dataset, config, image_id, augment=False, augmentation=None):
     # if the corresponding mask got cropped out.
     # bbox: [num_instances, (y1, x1, y2, x2)]
     bbox = np.array(dataset.image_info[image_id]['boxes']) * scale
+    # bbox = np.array(dataset.image_info[image_id]['boxes'])
     # todo: make sure its working
-    # # The shape before padding
-    # image_shape = tuple(np.subtract(image.shape[:2], (padding[0][0] + padding[0][1], 0)))
+    # The shape before padding
+    diff = np.abs(np.subtract(window, (0, 0, 1024, 1024)))
+    diff[diff < 0] = 0
+    bbox += diff
+
+    # image_shape = tuple(np.subtract(image.shape[:2], (padding[1][0] + padding[1][1], 0)))
     # window = utils.norm_boxes(window, image_shape)
     # bbox = utils.norm_boxes(bbox, original_shape[:2])
     # wy1, wx1, wy2, wx2 = window
@@ -1389,8 +1394,8 @@ def load_image_gt(dataset, config, image_id, augment=False, augmentation=None):
     # # Convert boxes to pixel coordinates on the original image
     # bbox = utils.denorm_boxes(bbox, image_shape)
     # # Adding the padding
-    # bbox[:, 0] += padding[0][0] * 2
-    # bbox[:, 2] += padding[0][0] * 2
+    # bbox[:, 0] += padding[1][0] * 2
+    # bbox[:, 2] += padding[1][0] * 2
 
     # Active classes
     # Different datasets have different classes, so track the
@@ -1793,7 +1798,8 @@ def data_generator(dataset, config, shuffle=True, augment=False, augmentation=No
             if random_rois:
                 rpn_rois = generate_random_rois(image.shape, random_rois, gt_class_ids, gt_boxes)
                 if detection_targets:
-                    rois, mrcnn_class_ids, mrcnn_bbox = build_detection_targets(rpn_rois, gt_class_ids, gt_boxes, config)
+                    rois, mrcnn_class_ids, mrcnn_bbox = build_detection_targets(rpn_rois, gt_class_ids, gt_boxes,
+                                                                                config)
 
             # Init batch arrays
             if b == 0:

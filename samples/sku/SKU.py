@@ -92,9 +92,9 @@ class SKUConfig(Config):
     TRAINABLE_FPN = True
     TRAINABLE_RPN = True
 
-    IMAGE_MIN_DIM = 720
-    IMAGE_MAX_DIM = 1280
-    IMAGE_RESIZE_MODE = None
+    IMAGE_MIN_DIM = 1024
+    IMAGE_MAX_DIM = 1024
+    IMAGE_RESIZE_MODE = "square"
 
     # Number of ROIs per image to feed to classifier/mask heads
     # The Mask RCNN paper uses 512 but often the RPN doesn't generate
@@ -257,9 +257,9 @@ def _read_images(base_dir, load_images_flag=False):
     for project in dirs:
 
         # todo: for debug purposes
-        # if project != 'rinielsenus':
+        # if project != 'ccus':
         #     continue
-        # project_imgs = ["206875.jpg"]
+        # project_imgs = ["20023.jpg"]
 
         project_imgs = os.listdir(os.path.join(base_dir, project))
         i = 0
