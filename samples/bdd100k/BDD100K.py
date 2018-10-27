@@ -82,8 +82,8 @@ class BDD100KConfig(Config):
     # NUM_CLASSES = 80 + 1  # MS-COCO 80 classes + 1 negative
 
     # Relation Networks or no Relation Networks at all
-    # GPI_TYPE = "FeatureAttention"
-    GPI_TYPE = None
+    GPI_TYPE = "FeatureAttention"
+    # GPI_TYPE = None
 
     # Use RPN ROIs or externally generated ROIs for training
     USE_RPN_ROIS = True

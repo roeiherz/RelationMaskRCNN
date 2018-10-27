@@ -1069,10 +1069,11 @@ def fpn_classifier_graph(rois, feature_maps, image_meta, pool_size, num_classes,
         # The input is entity features, entity neighbour features and the representation of the graph
         object_all_features = KL.Concatenate(axis=-1)([node_features, expand_graph])
         rho_delta = KL.Dense(fc_layers_size, activation='relu', name='nn_rho_1')(object_all_features)
-        rho_delta = KL.Dense(fc_layers_size, activation='relu', name='nn_rho_2')(rho_delta)
-        rho_forget = KL.Dense(fc_layers_size, activation='sigmoid', name='nn_rho_forget_gate')(object_all_features)
-        shared = GPIKerasForgetLayer(num_rois, feature_size=fc_layers_size, name="forget_layer") \
-            ([rho_delta, rho_forget, shared_single_features])
+        rho_delta = KL.Dense(1024, activation='relu', name='nn_rho_2')(rho_delta)
+        shared = rho_delta
+        # rho_forget = KL.Dense(fc_layers_size, activation='sigmoid', name='nn_rho_forget_gate')(object_all_features)
+        # shared = GPIKerasForgetLayer(num_rois, feature_size=fc_layers_size, name="forget_layer") \
+        #     ([rho_delta, rho_forget, shared_single_features])
         # shared = rho_delta + rho_forget * shared_single_features
         # shared = KL.Dense(1024, activation=None, name='nn_rho_ent_out')(rho_delta)
 
@@ -1792,17 +1793,6 @@ def data_generator(dataset, config, shuffle=True, augment=False, augmentation=No
             rpn_match, rpn_bbox = build_rpn_targets(image.shape, anchors,
                                                     gt_class_ids, gt_boxes, config)
 
-            # import matplotlib.pyplot as plt
-            # _, ax = plt.subplots(1, 1, figsize=(16 * 1, 16 * 1))
-            # from mrcnn import visualize
-            # tt_boxes = utils.denorm_boxes(rpn_bbox, image.shape[:2])
-            # image = dataset.load_image(image_id)
-            # visualize.save_instances(image, tt_boxes, gt_boxes, gt_class_ids, gt_class_ids, dataset.class_names,
-            #                          scores=None,
-            #                          ax=ax, title="Predictions",
-            #                          path="test.jpg",
-            #                          show_mask=False, captions=None)
-
             # Mask R-CNN Targets
             if random_rois:
                 rpn_rois = generate_random_rois(image.shape, random_rois, gt_class_ids, gt_boxes)
@@ -2406,7 +2396,7 @@ class MaskRCNN():
         # Train
         log("\nStarting at epoch {}. LR={}\n".format(self.epoch, learning_rate))
         log("Checkpoint Path: {}".format(self.checkpoint_path))
-        self.set_trainable(layers)
+        # self.set_trainable(layers)
         self.compile(learning_rate, self.config.LEARNING_MOMENTUM)
 
         # Work-around for Windows: Keras fails on Windows when using
