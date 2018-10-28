@@ -4,6 +4,7 @@ import sys
 import time
 import random
 import matplotlib.pyplot as plt
+
 # Import Mask RCNN
 
 ROOT_DIR = os.path.abspath("../../")
@@ -55,12 +56,12 @@ def get_ids_from_uuids(dataset, uuids):
 if __name__ == '__main__':
 
     # Parse command line arguments
-    parser = argparse.ArgumentParser(description='Predict Graph Detector on BDD.')
+    parser = argparse.ArgumentParser(description='Predict Mask-RCNN Detector on SKU.')
     parser.add_argument('--local', help='local debug', action='store', default=False)
     parser.add_argument('--dataset_dir',
                         default=DATASET_DIR,
                         metavar="/path/to/coco/",
-                        help='Directory of the Nexars Incidents dataset')
+                        help='Directory of SKU dataset')
     parser.add_argument('--model',
                         default="nexar",
                         metavar="/path/to/weights.h5",
@@ -74,12 +75,12 @@ if __name__ == '__main__':
                         metavar="/path/to/logs/",
                         help='Logs and checkpoints directory (default=logs/)')
     parser.add_argument('--shuffle', required=False,
-                    default=True,
-                    metavar="<image count>",
-                    help='Images to use for evaluation (default=500)',
-                    type=bool)
+                        default=True,
+                        metavar="<image count>",
+                        help='Images to use for evaluation (default=500)',
+                        type=bool)
     parser.add_argument('--limit', required=False,
-                        default=500,
+                        default=None,
                         metavar="<image count>",
                         help='Images to use for evaluation (default=500)')
     parser.add_argument('--gpu', required=False,
@@ -100,8 +101,10 @@ if __name__ == '__main__':
     # Use Local params
     if args.local:
         args.dataset_dir = "/Users/roeiherzig/Datasets/SKU_dataset/"
-        # Resnet101 COCO Model
-        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/Coco/mask_rcnn_coco.h5"
+        # # Resnet101 COCO Model
+        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/Coco/mask_rcnn_coco.h5"
+        # Resnet50 SKU Model
+        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/sku20181027T2116/mask_rcnn_sku_0009.h5"
         args.save_path = "/Users/roeiherzig/RelationMaskRCNN/samples/sku"
 
     print("Model: ", args.model)
@@ -122,6 +125,7 @@ if __name__ == '__main__':
         IMAGES_PER_GPU = 1
         DETECTION_MIN_CONFIDENCE = 0.0
         POST_NMS_ROIS_INFERENCE = 100
+
 
     config = InferenceConfig()
     config.display()
@@ -148,12 +152,14 @@ if __name__ == '__main__':
 
     # Testing dataset
     dataset = SKUDataset()
-    dataset.load_sku(args.dataset_dir, "val", load_images_flag=False)
+    dataset.load_sku(args.dataset_dir, "train", load_images_flag=False)
     dataset.prepare()
 
-    uuids = ["rnbde/45308.jpg"]
+    uuids = ["rinielsenus/201674.jpg"]
+    # uuids = ["rnbde/45308.jpg"]
     # uuids = ["pngamerica/96150.jpg"]
-    # uuids = ["ccus/33190.jpg"]
+    # uuids = ["pngcn-prod/2456.jpg"]
+    # uuids = ["ccus/20023.jpg"]
     ids = get_ids_from_uuids(dataset, uuids)
     # ids = [random.choice(dataset.image_ids)]
     # ids = [8343]
@@ -171,14 +177,15 @@ if __name__ == '__main__':
         r = results[0]
         gpi = "" if config.GPI_TYPE is None else "_gpi"
         id = "{}_{}".format(os.path.dirname(info["id"]), os.path.basename(info["id"]).split('.')[0])
-        # visualize.save_instances(image, np.array([]), gt_bbox, np.array([]), gt_class_id, dataset.class_names, np.array([]),
-        #                  ax=ax, title="Predictions_{}_{}".format(info["id"], gpi),
-        #                  path="{}/{}_{}_{}.jpg".format(args.save_path, args.model.split('/')[-2], id, gpi),
-        #                  show_mask=False)
-        visualize.save_instances(image, r['rois'], gt_bbox, r['class_ids'], gt_class_id, dataset.class_names, r['scores'],
+        visualize.save_instances(image, np.array([]), gt_bbox, np.array([]), gt_class_id, dataset.class_names,
+                                 np.array([]),
                                  ax=ax, title="Predictions_{}_{}".format(info["id"], gpi),
                                  path="{}/{}_{}_{}.jpg".format(args.save_path, args.model.split('/')[-2], id, gpi),
                                  show_mask=False)
+        # visualize.save_instances(image, r['rois'], gt_bbox, r['class_ids'], gt_class_id, dataset.class_names, r['scores'],
+        #                          ax=ax, title="Predictions_{}_{}".format(info["id"], gpi),
+        #                          path="{}/{}_{}_{}.jpg".format(args.save_path, args.model.split('/')[-2], id, gpi),
+        #                          show_mask=False)
         if r['relation_attention'] is not None:
             visualize.draw_attention(r['rois'], r['relation_attention'], image, info["id"])
 

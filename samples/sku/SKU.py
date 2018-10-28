@@ -106,8 +106,8 @@ class SKUConfig(Config):
     FPN_CLASSIF_FC_LAYERS_SIZE = 1024 if GPI_TYPE is None else 512
 
     # Exclude layers
-    EXCLUDE_LAYERS = ['mrcnn_bbox_fc', 'mrcnn_class_logits']
-    # EXCLUDE_LAYERS = None
+    # EXCLUDE_LAYERS = ['mrcnn_bbox_fc', 'mrcnn_class_logits']
+    EXCLUDE_LAYERS = None
 
     # Percent of positive ROIs used to train classifier/mask heads
     ROI_POSITIVE_RATIO = 0.33
@@ -257,9 +257,9 @@ def _read_images(base_dir, load_images_flag=False):
     for project in dirs:
 
         # todo: for debug purposes
-        # if project != 'ccus':
+        # if project != 'rinielsenus':
         #     continue
-        # project_imgs = ["20023.jpg"]
+        # project_imgs = ["201674.jpg"]
 
         project_imgs = os.listdir(os.path.join(base_dir, project))
         i = 0
@@ -275,6 +275,9 @@ def _read_images(base_dir, load_images_flag=False):
 
                 # Image shape
                 height, width = img.shape[:2]
+                if height != 1920 or width != 2560:
+                    continue
+
                 result[img_file] = {"width": width, "height": height}
                 i += 1
                 if not load_images_flag and i == 10:
