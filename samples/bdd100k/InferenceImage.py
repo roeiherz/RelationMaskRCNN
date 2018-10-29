@@ -1,3 +1,4 @@
+import numpy as np
 import os
 import sys
 # import imgaug  # https://github.com/aleju/imgaug (pip3 install imgaug)
@@ -5,11 +6,15 @@ import time
 import random
 import matplotlib.pyplot as plt
 # Import Mask RCNN
+import skimage
+
+from mrcnn.utils import compute_iou
 from samples.bdd100k.BDD100K import BDD100KDataset, BDD100KConfig
+from samples.coco.coco import CocoConfig
 
 ROOT_DIR = os.path.abspath("../../")
 sys.path.append(ROOT_DIR)  # To find local version of the library
-
+from mrcnn import utils
 # Root directory of the project
 from mrcnn import model as modellib
 import argparse
@@ -103,13 +108,13 @@ if __name__ == '__main__':
         # different loss
         # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180928T1748/mask_rcnn_bdd100k_0023.h5"
         # Resnet101 Pretrained bdd100k20180928T1743 Model GPI only rois fixed
-        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180929T1156/mask_rcnn_bdd100k_0061.h5"
+        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180929T1156/mask_rcnn_bdd100k_0088.h5"
+        # Resnet50 pretrained on bdd 256 x 256 with GPI
+        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20181027T1246/mask_rcnn_bdd100k_0033.h5"
         # Resnet101 GPI Model pre trained from COCO
         # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180926T1231/mask_rcnn_bdd100k_0009.h5"
         # Resnet50 pretrained on bdd without GPI
         # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20181018T2014/mask_rcnn_bdd100k_0149.h5"
-        # Resnet50 pretrained on bdd 256 x 256 with GPI
-        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20181027T1246/mask_rcnn_bdd100k_0033.h5"
         args.save_path = "/Users/roeiherzig/RelationMaskRCNN/samples/bdd100k"
         # args.save_path = "/Users/roeiherzig/RelationMaskRCNN/samples/bdd100k/7_160_resnet101.jpg"
 
@@ -121,6 +126,7 @@ if __name__ == '__main__':
     print("Save Path: ", args.save_path)
     print("Local: ", args.local)
     print("Limit: ", args.limit)
+
 
     # Configurations
     class InferenceConfig(BDD100KConfig):
@@ -156,24 +162,22 @@ if __name__ == '__main__':
     model.load_weights(model_path, by_name=True, mode='inference')
 
     # Testing dataset
-    dataset = BDD100KDataset()
-    dataset.load_bdd100k(args.dataset_dir, "val", load_images_flag=False)
-    dataset.prepare()
+    # dataset = BDD100KDataset()
+    # dataset.load_bdd100k(args.dataset_dir, "val", load_images_flag=False)
+    # dataset.prepare()
 
-    # uuids = ["c1f8d9b3-81ee1c2d", "b2db41a2-721e0f4e", "b222c329-5dc8dbf7", "bb8e2033-6c418fc7", "c0625a26-cefa81e9",
-    #          "b6d0b9d1-d643d86a", "c18feebb-3e10acea"]
-    # uuids = ["c927d51b-92852659"]
-    # uuids = ["b1d0a191-06deb55d"]
-    # ids = get_ids_from_uuids(dataset, uuids)
-    ids = [random.choice(dataset.image_ids)]
-    # ids = [9306]
-    # ids = [8343]
+    ids = ["000090", "000091", "000093", "000094", "000095", "000096", "000097", "000098", "000099", "000100",
+           "000101", "000102", "000103", "000104", "000105", "000106", "000107", "000108", "000109", "000110",
+           "000111", "000112", "000113", "000114", "000115", "000116", "000117", "000119", "000120", "000121"]
+    uuid = "ae006141-d434-4f38-91f3-4b2f390c9025"
+    main_acc_box = [430, 606, 575, 1034]
+    main_acc_box_area = float(main_acc_box[2] - main_acc_box[0]) * (main_acc_box[3] - main_acc_box[1])
 
     for image_id in ids:
-        image, _, gt_class_id, gt_bbox = modellib.load_image_gt(dataset, config, image_id)
-        info = dataset.image_info[image_id]
-        print("image ID: {}.{} ({}) {}".format(info["source"], info["id"], image_id,
-                                               dataset.image_reference(image_id)))
+        # Load image and mask
+        image = skimage.io.imread("/Users/roeiherzig/Datasets/Accidents1K/Images/{}/{}.jpg".format(uuid, image_id))
+        original_shape = image.shape
+
         # Run object detection
         results = model.detect([image], verbose=1, gpi_type=config.GPI_TYPE)
 
@@ -181,16 +185,21 @@ if __name__ == '__main__':
         ax = get_ax(1)
         r = results[0]
         gpi = "" if config.GPI_TYPE is None else "_gpi"
-        visualize.save_instances(image, r['rois'], gt_bbox, r['class_ids'], gt_class_id, dataset.class_names,
+        visualize.save_instances(image, r['rois'], np.array([]), r['class_ids'], np.array([]), np.array([]),
                                  r['scores'],
-                                 ax=ax, title="Predictions_{}_{}".format(info["id"], gpi),
-                                 path="{}/{}_{}_{}.jpg".format(args.save_path, args.model.split('/')[-2], info["id"],
-                                                               gpi),
+                                 ax=ax, title="Predictions_{}_{}".format(uuid, image_id),
+                                 path="{}/{}_{}_{}.jpg".format(args.save_path, args.model.split('/')[-2], uuid,
+                                                               image_id),
                                  show_mask=False)
-        if r['relation_attention'] is not None:
-            visualize.draw_attention(r['rois'], r['relation_attention'], image, info["id"])
 
-        print("gt_class_id", gt_class_id)
-        print("gt_bbox", gt_bbox)
+        # Get the main accidents box
+        rois_area = (r['rois'][:, 2] - r['rois'][:, 0]) * (r['rois'][:, 3] - r['rois'][:, 1])
+        ious = compute_iou(main_acc_box, r['rois'].astype("float"), main_acc_box_area, rois_area)
+        # chosen_iou = np.array([r['rois'][np.argmax(ious)]])
+        chosen_iou_ind = np.argmax(ious)
+
+        if r['relation_attention'] is not None:
+            visualize.draw_attention(r['rois'], r['relation_attention'], image, "{}_{}".format(uuid, image_id),
+                                     chosen_iou_ind)
 
     print("End Graph Detector Prediction")

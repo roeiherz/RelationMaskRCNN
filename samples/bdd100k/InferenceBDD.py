@@ -1,3 +1,6 @@
+import csv
+
+import numpy as np
 import os
 import sys
 # import imgaug  # https://github.com/aleju/imgaug (pip3 install imgaug)
@@ -5,11 +8,12 @@ import time
 import random
 import matplotlib.pyplot as plt
 # Import Mask RCNN
-from samples.bdd100k.BDD100K import BDD100KDataset, BDD100KConfig
+import skimage
+
 
 ROOT_DIR = os.path.abspath("../../")
 sys.path.append(ROOT_DIR)  # To find local version of the library
-
+from samples.bdd100k.BDD100K import BDD100KConfig, _open_for_csv, _read_classes
 # Root directory of the project
 from mrcnn import model as modellib
 import argparse
@@ -23,14 +27,20 @@ MODEL_PATH = os.path.join(ROOT_DIR, 'weights')
 DEFAULT_LOGS_DIR = os.path.join(ROOT_DIR, "logs")
 DEFAULT_DATASET_YEAR = "2017"
 # Dataset path for the data
-DATASET_DIR = "/data/BDD/bdd100k/"
+BDD_DATASET_DIR = "/data/BDD/bdd100k/"
+ACCIDENTS_DATASET_DIR = "/data/Accidents1K"
+
+
+def clean_name(name):
+    """Returns a shorter version of object names for cleaner display."""
+    return ",".join(name.split(",")[:1])
 
 
 def get_ax(rows=1, cols=1, size=16):
     """Return a Matplotlib Axes array to be used in
     all visualizations in the notebook. Provide a
     central point to control graph sizes.
-    
+
     Adjust the size attribute to control how big to render images
     """
     _, ax = plt.subplots(rows, cols, figsize=(size * cols, size * rows))
@@ -58,8 +68,8 @@ if __name__ == '__main__':
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='Predict Graph Detector on BDD.')
     parser.add_argument('--local', help='local debug', action='store', default=False)
-    parser.add_argument('--dataset_dir',
-                        default=DATASET_DIR,
+    parser.add_argument('--accidents_dataset_dir',
+                        default=ACCIDENTS_DATASET_DIR,
                         metavar="/path/to/coco/",
                         help='Directory of the Nexars Incidents dataset')
     parser.add_argument('--model',
@@ -89,13 +99,15 @@ if __name__ == '__main__':
                         help='Number of workers',
                         type=int)
     args = parser.parse_args()
+    args.bdd_dataset_dir = BDD_DATASET_DIR
 
     # Define GPU training
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
 
     # Use Local params
     if args.local:
-        args.dataset_dir = "/Users/roeiherzig/Datasets/BDD/bdd100k/"
+        args.bdd_dataset_dir = "/Users/roeiherzig/Datasets/BDD/bdd100k/"
+        args.accidents_dataset_dir = "/Users/roeiherzig/Datasets/Accidents1K"
         # Resnet101 COCO Model
         # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/Coco/mask_rcnn_coco.h5"
         # Resnet101 Pretrained COCO Model only rois fixed
@@ -103,18 +115,16 @@ if __name__ == '__main__':
         # different loss
         # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180928T1748/mask_rcnn_bdd100k_0023.h5"
         # Resnet101 Pretrained bdd100k20180928T1743 Model GPI only rois fixed
-        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180929T1156/mask_rcnn_bdd100k_0061.h5"
+        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180929T1156/mask_rcnn_bdd100k_0088.h5"
         # Resnet101 GPI Model pre trained from COCO
         # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180926T1231/mask_rcnn_bdd100k_0009.h5"
         # Resnet50 pretrained on bdd without GPI
         # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20181018T2014/mask_rcnn_bdd100k_0149.h5"
-        # Resnet50 pretrained on bdd 256 x 256 with GPI
-        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20181027T1246/mask_rcnn_bdd100k_0033.h5"
         args.save_path = "/Users/roeiherzig/RelationMaskRCNN/samples/bdd100k"
         # args.save_path = "/Users/roeiherzig/RelationMaskRCNN/samples/bdd100k/7_160_resnet101.jpg"
 
     print("Model: ", args.model)
-    print("Dataset dir: ", args.dataset_dir)
+    print("Dataset dir: ", args.accidents_dataset_dir)
     print("Logs: ", args.logs)
     print("GPU: ", args.gpu)
     print("Number of Workers: ", args.workers)
@@ -128,9 +138,8 @@ if __name__ == '__main__':
         # Batch size = GPU_COUNT * IMAGES_PER_GPU
         GPU_COUNT = 1
         IMAGES_PER_GPU = 1
-        DETECTION_MIN_CONFIDENCE = 0.7
+        DETECTION_MIN_CONFIDENCE = 0.0
         POST_NMS_ROIS_INFERENCE = 100
-
 
     config = InferenceConfig()
     config.display()
@@ -155,42 +164,77 @@ if __name__ == '__main__':
     print("Loading weights ", model_path)
     model.load_weights(model_path, by_name=True, mode='inference')
 
-    # Testing dataset
-    dataset = BDD100KDataset()
-    dataset.load_bdd100k(args.dataset_dir, "val", load_images_flag=False)
-    dataset.prepare()
+    # Class mapping
+    class_info = [{"source": "", "id": 0, "name": "BG"}]
+    mappings_csv = os.path.join(args.bdd_dataset_dir, "bdd100k_class_mappings_train.csv")
+    try:
+        # parse the provided class file
+        with _open_for_csv(mappings_csv) as file:
+            class_ids = _read_classes(csv.reader(file, delimiter=','))
 
-    # uuids = ["c1f8d9b3-81ee1c2d", "b2db41a2-721e0f4e", "b222c329-5dc8dbf7", "bb8e2033-6c418fc7", "c0625a26-cefa81e9",
-    #          "b6d0b9d1-d643d86a", "c18feebb-3e10acea"]
-    # uuids = ["c927d51b-92852659"]
-    # uuids = ["b1d0a191-06deb55d"]
-    # ids = get_ids_from_uuids(dataset, uuids)
-    ids = [random.choice(dataset.image_ids)]
-    # ids = [9306]
-    # ids = [8343]
+        # Add classes
+        for index, label in enumerate(class_ids):
+            class_info.append({"source": "bdd100k",
+                               "id": index,
+                               "name": label})
+        class_names = [clean_name(c["name"]) for c in class_info]
 
-    for image_id in ids:
-        image, _, gt_class_id, gt_bbox = modellib.load_image_gt(dataset, config, image_id)
-        info = dataset.image_info[image_id]
-        print("image ID: {}.{} ({}) {}".format(info["source"], info["id"], image_id,
-                                               dataset.image_reference(image_id)))
-        # Run object detection
-        results = model.detect([image], verbose=1, gpi_type=config.GPI_TYPE)
+    except ValueError as e:
+        print('invalid Mapping {}: {}'.format(mappings_csv, e))
 
-        # Display results
-        ax = get_ax(1)
-        r = results[0]
-        gpi = "" if config.GPI_TYPE is None else "_gpi"
-        visualize.save_instances(image, r['rois'], gt_bbox, r['class_ids'], gt_class_id, dataset.class_names,
-                                 r['scores'],
-                                 ax=ax, title="Predictions_{}_{}".format(info["id"], gpi),
-                                 path="{}/{}_{}_{}.jpg".format(args.save_path, args.model.split('/')[-2], info["id"],
-                                                               gpi),
-                                 show_mask=False)
-        if r['relation_attention'] is not None:
-            visualize.draw_attention(r['rois'], r['relation_attention'], image, info["id"])
+    # Paths
+    input_path = os.path.join(args.accidents_dataset_dir, "Images")
+    output_path = os.path.join(args.accidents_dataset_dir, "BBoxNewNew")
 
-        print("gt_class_id", gt_class_id)
-        print("gt_bbox", gt_bbox)
+    # Get UUIDs
+    dirs = [dr for dr in os.listdir(input_path) if os.path.isdir(os.path.join(input_path, dr))]
+    print("Number of dirs: {}".format(len(dirs)))
 
-    print("End Graph Detector Prediction")
+    csv_data_lst = []
+    for uuid in dirs:
+        imgs = [img for img in os.listdir(os.path.join(input_path, uuid)) if ".jpg" in img]
+        print("Processing UUID: {} with number of images: {}".format(uuid, len(imgs)))
+        # Process image
+        start = time.time()
+        with open(os.path.join(output_path, "{}.csv".format(uuid)), 'wb') as fl_csv:
+            for image_id in imgs:
+                # Load image and mask
+                image = skimage.io.imread(os.path.join(input_path, uuid, image_id))
+
+                # Run object detection
+                results = model.detect([image], verbose=1, gpi_type=config.GPI_TYPE)
+                print("processing time on Image {0}: {1}".format(image_id, time.time() - start))
+                r = results[0]
+
+                # # Stats detections
+                for box, score, label in zip(r['rois'], r['scores'], r['class_ids']):
+
+                    if class_names[label] == "traffic sign":
+                        continue
+
+                    # Append data to csv outputs
+                    b = box.astype(int)
+                    x1 = b[1]
+                    y1 = b[0]
+                    x2 = b[3]
+                    y2 = b[2]
+
+                    row = [os.path.join(uuid, image_id), x1, y1, x2, y2, score, class_names[label]]
+                    csv_data_lst.append(row)
+
+                # # Display results
+                # ax = get_ax(1)
+                # gpi = "" if config.GPI_TYPE is None else "_gpi"
+                # visualize.save_instances(image, r['rois'], np.array([]), r['class_ids'], np.array([]), class_names,
+                #                          r['scores'],
+                #                          ax=ax, title="Predictions_{}_{}".format(uuid, image_id),
+                #                          path="{}/{}_{}_{}.jpg".format(args.save_path, args.model.split('/')[-2], uuid,
+                #                                                        image_id),
+                #                          show_mask=False)
+
+        print("processing time on UUID {0}: {1}".format(uuid, time.time() - start))
+
+        # Write file
+        writer = csv.writer(fl_csv)
+        writer.writerows(csv_data_lst)
+    print("End BDD Prediction")
