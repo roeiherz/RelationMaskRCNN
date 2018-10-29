@@ -90,9 +90,10 @@ def get_color_map(image, color=cv2.COLORMAP_JET):
     return cv2.applyColorMap(cv2.equalizeHist(image), color)
 
 
-def draw_attention(rois, confidences, image, img_id):
+def draw_attention(rois, confidences, image, img_id, chosen_iou_ind=None):
     """
 
+    :param chosen_iou_ind:
     :param rois:
     :param confidences:
     :param image:
@@ -104,6 +105,11 @@ def draw_attention(rois, confidences, image, img_id):
     i = 0
     for roi in rois:
         try:
+
+            if chosen_iou_ind is not None and chosen_iou_ind != i:
+                i += 1
+                continue
+
             confidences_per_object = confidences[:, i]
             heat_map = numpy.zeros(shape=[image_shape[0], image_shape[1], 1], dtype=numpy.float64)
             original_detection_centers = attention_per_neighb(rois, original_detection_centers,
