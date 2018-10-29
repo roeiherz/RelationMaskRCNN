@@ -86,12 +86,12 @@ class BDD100KConfig(Config):
     # GPI_TYPE = None
 
     # Use RPN ROIs or externally generated ROIs for training
-    USE_RPN_ROIS = False
+    USE_RPN_ROIS = True
 
     # Train or not backbone weights
-    TRAINABLE_BACKBONE = False
-    TRAINABLE_FPN = False
-    TRAINABLE_RPN = False
+    TRAINABLE_BACKBONE = True
+    TRAINABLE_FPN = True
+    TRAINABLE_RPN = True
 
     IMAGE_MIN_DIM = 720
     IMAGE_MAX_DIM = 1280
@@ -109,8 +109,8 @@ class BDD100KConfig(Config):
     FPN_CLASSIF_FC_LAYERS_SIZE = 1024 if GPI_TYPE is None else 512
 
     # Exclude layers
-    EXCLUDE_LAYERS = ['mrcnn_bbox_fc', 'mrcnn_class_logits']
-    # EXCLUDE_LAYERS = None
+    # EXCLUDE_LAYERS = ['mrcnn_bbox_fc', 'mrcnn_class_logits']
+    EXCLUDE_LAYERS = None
 
     # Percent of positive ROIs used to train classifier/mask heads
     ROI_POSITIVE_RATIO = 0.33

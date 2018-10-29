@@ -194,7 +194,8 @@ if __name__ == '__main__':
     for uuid in dirs:
         imgs = [img for img in os.listdir(os.path.join(input_path, uuid)) if ".jpg" in img]
         print("Processing UUID: {} with number of images: {}".format(uuid, len(imgs)))
-
+        # Process image
+        start = time.time()
         with open(os.path.join(output_path, "{}.csv".format(uuid)), 'wb') as fl_csv:
             for image_id in imgs:
                 # Load image and mask
@@ -206,6 +207,9 @@ if __name__ == '__main__':
 
                 # # Stats detections
                 for box, score, label in zip(r['rois'], r['scores'], r['class_ids']):
+
+                    if class_names[label] == "traffic sign":
+                        continue
 
                     # Append data to csv outputs
                     b = box.astype(int)
@@ -226,6 +230,10 @@ if __name__ == '__main__':
                                          path="{}/{}_{}_{}.jpg".format(args.save_path, args.model.split('/')[-2], uuid,
                                                                        image_id),
                                          show_mask=False)
+
+        print("processing time on UUID {0}: {1}".format(uuid, time.time() - start))
+
+        # Write file
         writer = csv.writer(fl_csv)
         writer.writerows(csv_data_lst)
     print("End BDD Prediction")

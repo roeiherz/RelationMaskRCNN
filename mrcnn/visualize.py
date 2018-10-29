@@ -235,6 +235,7 @@ def save_instances(image, boxes, gt_boxes, class_ids, gt_class_id, class_names, 
             class_id = class_ids[i]
             score = scores[i] if scores is not None else None
             label = class_names[class_id]
+            # label = "object"
             caption = "{} {:.3f}".format(label, score) if score else label
             # caption = "check"
         else:
