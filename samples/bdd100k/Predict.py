@@ -115,7 +115,6 @@ if __name__ == '__main__':
     print("GPU: ", args.gpu)
     print("Number of Workers: ", args.workers)
     print("Save Path: ", args.save_path)
-    print("Shuffle: ", args.shuffle)
     print("Local: ", args.local)
     print("Limit: ", args.limit)
 
