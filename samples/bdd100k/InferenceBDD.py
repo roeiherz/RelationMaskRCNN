@@ -221,15 +221,15 @@ if __name__ == '__main__':
                     row = [os.path.join(uuid, image_id), x1, y1, x2, y2, score, class_names[label]]
                     csv_data_lst.append(row)
 
-                # Display results
-                ax = get_ax(1)
-                gpi = "" if config.GPI_TYPE is None else "_gpi"
-                visualize.save_instances(image, r['rois'], np.array([]), r['class_ids'], np.array([]), class_names,
-                                         r['scores'],
-                                         ax=ax, title="Predictions_{}_{}".format(uuid, image_id),
-                                         path="{}/{}_{}_{}.jpg".format(args.save_path, args.model.split('/')[-2], uuid,
-                                                                       image_id),
-                                         show_mask=False)
+                # # Display results
+                # ax = get_ax(1)
+                # gpi = "" if config.GPI_TYPE is None else "_gpi"
+                # visualize.save_instances(image, r['rois'], np.array([]), r['class_ids'], np.array([]), class_names,
+                #                          r['scores'],
+                #                          ax=ax, title="Predictions_{}_{}".format(uuid, image_id),
+                #                          path="{}/{}_{}_{}.jpg".format(args.save_path, args.model.split('/')[-2], uuid,
+                #                                                        image_id),
+                #                          show_mask=False)
 
         print("processing time on UUID {0}: {1}".format(uuid, time.time() - start))
 
