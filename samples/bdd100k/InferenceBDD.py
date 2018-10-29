@@ -203,6 +203,7 @@ if __name__ == '__main__':
 
                 # Run object detection
                 results = model.detect([image], verbose=1, gpi_type=config.GPI_TYPE)
+                print("processing time on Image {0}: {1}".format(image_id, time.time() - start))
                 r = results[0]
 
                 # # Stats detections
