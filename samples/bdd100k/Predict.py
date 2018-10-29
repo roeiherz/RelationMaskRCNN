@@ -99,11 +99,11 @@ if __name__ == '__main__':
         # Resnet101 COCO Model
         # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/Coco/mask_rcnn_coco.h5"
         # Resnet101 Pretrained COCO Model only rois fixed
-        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180928T1743/mask_rcnn_bdd100k_0160.h5"
+        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180928T1743/mask_rcnn_bdd100k_0160.h5"
         # different loss
         # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180928T1748/mask_rcnn_bdd100k_0023.h5"
         # Resnet101 Pretrained bdd100k20180928T1743 Model GPI only rois fixed
-        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180929T1156/mask_rcnn_bdd100k_0061.h5"
+        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180929T1156/mask_rcnn_bdd100k_0088.h5"
         # Resnet101 GPI Model pre trained from COCO
         # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180926T1231/mask_rcnn_bdd100k_0009.h5"
         args.save_path = "/Users/roeiherzig/RelationMaskRCNN/samples/bdd100k"
@@ -151,12 +151,6 @@ if __name__ == '__main__':
     print("Loading weights ", model_path)
     model.load_weights(model_path, by_name=True, mode='inference')
 
-    # # Save in a new locations
-    # stmp = time.strftime("%c").replace(" ", "_")
-    # model_path = os.path.join(MODEL_PATH, stmp)
-    # create_folder(model_path)
-    # model_path = os.path.join(model_path, stmp, "mask_rcnn.h5")
-
     # Testing dataset
     dataset = BDD100KDataset()
     dataset.load_bdd100k(args.dataset_dir, "val", load_images_flag=False)
@@ -167,9 +161,9 @@ if __name__ == '__main__':
     # uuids = ["c927d51b-92852659"]
     # uuids = ["b1d0a191-06deb55d"]
     # ids = get_ids_from_uuids(dataset, uuids)
-    # ids = [random.choice(dataset.image_ids)]
+    ids = [random.choice(dataset.image_ids)]
     # ids = [9306]
-    ids = [8343]
+    # ids = [8343]
 
     for image_id in ids:
         image, _, gt_class_id, gt_bbox = modellib.load_image_gt(dataset, config, image_id)
