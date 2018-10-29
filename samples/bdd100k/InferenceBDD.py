@@ -68,7 +68,7 @@ if __name__ == '__main__':
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='Predict Graph Detector on BDD.')
     parser.add_argument('--local', help='local debug', action='store', default=False)
-    parser.add_argument('--dataset_dir',
+    parser.add_argument('--accidents_dataset_dir',
                         default=ACCIDENTS_DATASET_DIR,
                         metavar="/path/to/coco/",
                         help='Directory of the Nexars Incidents dataset')
