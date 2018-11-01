@@ -198,7 +198,7 @@ if __name__ == '__main__':
     print("Number of dirs: {}".format(len(dirs)))
 
     csv_data_lst = []
-    dirs = dirs[5:]
+    # dirs = dirs[5:]
     for uuid in dirs:
 
         if uuid not in videos:
