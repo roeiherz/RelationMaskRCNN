@@ -8,13 +8,14 @@ import time
 import random
 import matplotlib.pyplot as plt
 # Import Mask RCNN
+import pandas as pd
 import skimage
-
 
 ROOT_DIR = os.path.abspath("../../")
 sys.path.append(ROOT_DIR)  # To find local version of the library
 from samples.bdd100k.BDD100K import BDD100KConfig, _open_for_csv, _read_classes
 # Root directory of the project
+from mrcnn.utils import non_max_suppression
 from mrcnn import model as modellib
 import argparse
 from mrcnn import visualize
@@ -111,11 +112,13 @@ if __name__ == '__main__':
         # Resnet101 COCO Model
         # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/Coco/mask_rcnn_coco.h5"
         # Resnet101 Pretrained COCO Model only rois fixed
-        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180928T1743/mask_rcnn_bdd100k_0160.h5"
+        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180928T1743/mask_rcnn_bdd100k_0160.h5"
         # different loss
         # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180928T1748/mask_rcnn_bdd100k_0023.h5"
         # Resnet101 Pretrained bdd100k20180928T1743 Model GPI only rois fixed
-        args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180929T1156/mask_rcnn_bdd100k_0088.h5"
+        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180929T1156/mask_rcnn_bdd100k_0088.h5"
+        # Resnet50 pretrained on bdd 256 x 256 with GPI
+        # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20181027T1246/mask_rcnn_bdd100k_0033.h5"
         # Resnet101 GPI Model pre trained from COCO
         # args.model = "/Users/roeiherzig/RelationMaskRCNN/logs/bdd100k20180926T1231/mask_rcnn_bdd100k_0009.h5"
         # Resnet50 pretrained on bdd without GPI
@@ -132,14 +135,16 @@ if __name__ == '__main__':
     print("Local: ", args.local)
     print("Limit: ", args.limit)
 
+
     # Configurations
     class InferenceConfig(BDD100KConfig):
         # Set batch size to 1 since we'll be running inference on one image at a time.
         # Batch size = GPU_COUNT * IMAGES_PER_GPU
         GPU_COUNT = 1
         IMAGES_PER_GPU = 1
-        DETECTION_MIN_CONFIDENCE = 0.0
+        DETECTION_MIN_CONFIDENCE = 0.8
         POST_NMS_ROIS_INFERENCE = 100
+
 
     config = InferenceConfig()
     config.display()
@@ -185,29 +190,55 @@ if __name__ == '__main__':
     # Paths
     input_path = os.path.join(args.accidents_dataset_dir, "Images")
     output_path = os.path.join(args.accidents_dataset_dir, "BBoxNewNew")
+    df = pd.read_csv(os.path.join(args.accidents_dataset_dir, "accidents_index_filtered.csv"))
+    videos = [mov.split('.')[0] for mov in list(df.VideoName)]
 
     # Get UUIDs
     dirs = [dr for dr in os.listdir(input_path) if os.path.isdir(os.path.join(input_path, dr))]
     print("Number of dirs: {}".format(len(dirs)))
 
     csv_data_lst = []
+    dirs = dirs[5:]
     for uuid in dirs:
+
+        if uuid not in videos:
+            continue
+
         imgs = [img for img in os.listdir(os.path.join(input_path, uuid)) if ".jpg" in img]
+        # imgs.sort()
         print("Processing UUID: {} with number of images: {}".format(uuid, len(imgs)))
         # Process image
-        start = time.time()
+        start_epoch = time.time()
         with open(os.path.join(output_path, "{}.csv".format(uuid)), 'wb') as fl_csv:
+            # imgs = imgs[140:]
             for image_id in imgs:
+                start_img = time.time()
                 # Load image and mask
                 image = skimage.io.imread(os.path.join(input_path, uuid, image_id))
 
                 # Run object detection
                 results = model.detect([image], verbose=1, gpi_type=config.GPI_TYPE)
-                print("processing time on Image {0}: {1}".format(image_id, time.time() - start))
+                print("processing time on Image {0}: {1}".format(image_id, time.time() - start_img))
                 r = results[0]
 
+                boxes = r['rois']
+                scores = r['scores']
+                classes_ids = r['class_ids']
+                indices = non_max_suppression(boxes, scores, 0.2)
+                boxes = boxes[indices]
+
+                # Sort boxes
+                # x2 < 140 or x1 > 1140 or y1 < 50 or y2 > 600
+                keep_boxes_ind = np.where((boxes[:, 3] > 140) & (boxes[:, 1] < 1140) & (boxes[:, 2] < 600) &
+                                          (boxes[:, 0] > 50))[0]
+                boxes = boxes[keep_boxes_ind]
+
+                # boxes
+                scores = scores[keep_boxes_ind]
+                classes_ids = classes_ids[keep_boxes_ind]
+
                 # # Stats detections
-                for box, score, label in zip(r['rois'], r['scores'], r['class_ids']):
+                for box, score, label in zip(boxes, scores, classes_ids):
 
                     if class_names[label] == "traffic sign":
                         continue
@@ -222,17 +253,17 @@ if __name__ == '__main__':
                     row = [os.path.join(uuid, image_id), x1, y1, x2, y2, score, class_names[label]]
                     csv_data_lst.append(row)
 
-                # # Display results
-                # ax = get_ax(1)
-                # gpi = "" if config.GPI_TYPE is None else "_gpi"
-                # visualize.save_instances(image, r['rois'], np.array([]), r['class_ids'], np.array([]), class_names,
-                #                          r['scores'],
-                #                          ax=ax, title="Predictions_{}_{}".format(uuid, image_id),
-                #                          path="{}/{}_{}_{}.jpg".format(args.save_path, args.model.split('/')[-2], uuid,
-                #                                                        image_id),
-                #                          show_mask=False)
+                # Display results
+                ax = get_ax(1)
+                gpi = "" if config.GPI_TYPE is None else "_gpi"
+                visualize.save_instances(image, boxes, np.array([]), classes_ids, np.array([]), class_names,
+                                         scores,
+                                         ax=ax, title="Predictions_{}_{}".format(uuid, image_id),
+                                         path="{}/{}_{}_{}.jpg".format(args.save_path, args.model.split('/')[-2], uuid,
+                                                                       image_id),
+                                         show_mask=False)
 
-        print("processing time on UUID {0}: {1}".format(uuid, time.time() - start))
+        print("processing time on UUID {0}: {1}".format(uuid, time.time() - start_epoch))
 
         # Write file
         writer = csv.writer(fl_csv)

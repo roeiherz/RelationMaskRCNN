@@ -69,7 +69,7 @@ class BDD100KConfig(Config):
     """
     # Give the configuration a recognizable name
     NAME = "bdd100k"
-    BACKBONE = "resnet50"
+    BACKBONE = "resnet101"
 
     # Run eval of map at each end of epoch
     EVAL_MAP_IN_TRAINING = False
@@ -82,8 +82,8 @@ class BDD100KConfig(Config):
     # NUM_CLASSES = 80 + 1  # MS-COCO 80 classes + 1 negative
 
     # Relation Networks or no Relation Networks at all
-    GPI_TYPE = "FeatureAttention"
-    # GPI_TYPE = None
+    # GPI_TYPE = "FeatureAttention"
+    GPI_TYPE = None
 
     # Use RPN ROIs or externally generated ROIs for training
     USE_RPN_ROIS = True
@@ -93,8 +93,8 @@ class BDD100KConfig(Config):
     TRAINABLE_FPN = True
     TRAINABLE_RPN = True
 
-    IMAGE_MIN_DIM = 256
-    IMAGE_MAX_DIM = 256
+    IMAGE_MIN_DIM = 720
+    IMAGE_MAX_DIM = 1280
 
     # Number of ROIs per image to feed to classifier/mask heads
     # The Mask RCNN paper uses 512 but often the RPN doesn't generate
@@ -109,8 +109,8 @@ class BDD100KConfig(Config):
     FPN_CLASSIF_FC_LAYERS_SIZE = 1024 if GPI_TYPE is None else 512
 
     # Exclude layers
-    EXCLUDE_LAYERS = ['mrcnn_bbox_fc', 'mrcnn_class_logits']
-    # EXCLUDE_LAYERS = None
+    # EXCLUDE_LAYERS = ['mrcnn_bbox_fc', 'mrcnn_class_logits']
+    EXCLUDE_LAYERS = None
 
     # Percent of positive ROIs used to train classifier/mask heads
     ROI_POSITIVE_RATIO = 0.33
