@@ -30,7 +30,7 @@ DEFAULT_DATASET_YEAR = "2017"
 # Dataset path for the data
 BDD_DATASET_DIR = "/data/BDD/bdd100k/"
 ACCIDENTS_DATASET_DIR = "/data/Accidents1K"
-BATCH_SIZE = 2
+BATCH_SIZE = 32
 
 
 def clean_name(name):
@@ -141,7 +141,7 @@ if __name__ == '__main__':
         # Set batch size to 1 since we'll be running inference on one image at a time.
         # Batch size = GPU_COUNT * IMAGES_PER_GPU
         GPU_COUNT = 1
-        IMAGES_PER_GPU = 1
+        IMAGES_PER_GPU = BATCH_SIZE
         DETECTION_MIN_CONFIDENCE = 0.8
         POST_NMS_ROIS_INFERENCE = 100
 
@@ -255,12 +255,19 @@ if __name__ == '__main__':
                         boxes = boxes[indices]
 
                         # Sort boxes
+                        x1, y1, y2, x2 = boxes[:, 1], boxes[:, 0], boxes[:, 2], boxes[:, 3]
                         # x2 < 140 or x1 > 1140 or y1 < 50 or y2 > 600
-                        keep_boxes_ind = np.where((boxes[:, 3] > 140) & (boxes[:, 1] < 1140) & (boxes[:, 2] < 600) &
-                                                  (boxes[:, 0] > 50))[0]
+                        keep_boxes_ind = np.where((x2 > 140) & (x1 < 1140) & (y2 < 600) & (y1 > 50))[0]
                         boxes = boxes[keep_boxes_ind]
 
-                        # boxes
+                        # Sort 1/6 boxes from the sides
+                        # x1, y1, y2, x2 = boxes[:, 1], boxes[:, 0], boxes[:, 2], boxes[:, 3]
+                        # sub_x1, obj_x1 = np.meshgrid(x1, x1)
+                        # sub_y1, obj_y1 = np.meshgrid(y1, y1)
+                        # sub_x2, obj_x2 = np.meshgrid(x2, x2)
+                        # sub_y2, obj_y2 = np.meshgrid(y2, y2)
+
+                        # Take boxes indices
                         scores = scores[keep_boxes_ind]
                         classes_ids = classes_ids[keep_boxes_ind]
 
@@ -280,18 +287,18 @@ if __name__ == '__main__':
                             row = [os.path.join(uuid, image_id), x1, y1, x2, y2, score, class_names[label]]
                             csv_data_lst.append(row)
 
-                            # Display results
-                            ax = get_ax(1)
-                            gpi = "" if config.GPI_TYPE is None else "_gpi"
-                            visualize.save_instances(image, boxes, np.array([]), classes_ids, np.array([]), class_names,
-                                                     scores,
-                                                     ax=ax, title="Predictions_{}_{}".format(uuid, image_id),
-                                                     path="{}/{}_{}_{}.jpg".format(args.save_path, args.model.split('/')[-2], uuid,
-                                                                                   image_id),
-                                                     show_mask=False)
-
                         # Counter
                         current_index += 1
+
+                        # # Display results
+                        # ax = get_ax(1)
+                        # gpi = "" if config.GPI_TYPE is None else "_gpi"
+                        # visualize.save_instances(image, boxes, np.array([]), classes_ids, np.array([]), class_names,
+                        #                          scores,
+                        #                          ax=ax, title="Predictions_{}_{}".format(uuid, image_id),
+                        #                          path="{}/{}_{}_{}.jpg".format(args.save_path, args.model.split('/')[-2], uuid,
+                        #                                                        image_id),
+                        #                          show_mask=False)
 
                 except Exception as e:
                     print("Error: {}".format(str(e)))
