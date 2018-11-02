@@ -195,7 +195,7 @@ if __name__ == '__main__':
 
     # Get UUIDs
     dirs = [dr for dr in os.listdir(input_path) if os.path.isdir(os.path.join(input_path, dr))]
-    print("Number of dirs: {}".format(len(dirs)))
+    print("Number of dirs: {} and videos: {}".format(len(dirs), len(videos)))
 
     csv_data_lst = []
     for uuid in dirs:
@@ -238,7 +238,7 @@ if __name__ == '__main__':
 
                     # Run object detection
                     start = time.time()
-                    results = model.detect(images, verbose=1, gpi_type=config.GPI_TYPE)
+                    results = model.detect(images, verbose=0, gpi_type=config.GPI_TYPE)
                     print("processing time on batch_num {0}: {1}".format(batch, time.time() - start))
 
                     # Go over results
