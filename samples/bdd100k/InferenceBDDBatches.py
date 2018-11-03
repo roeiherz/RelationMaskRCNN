@@ -205,6 +205,7 @@ if __name__ == '__main__':
 
         # Sort out images
         imgs = [img for img in os.listdir(os.path.join(input_path, uuid)) if ".jpg" in img]
+        # imgs = imgs[:3]
 
         # Get number of batches (one file is JSON)
         size = len(imgs)
@@ -236,6 +237,13 @@ if __name__ == '__main__':
                         images.append(image)
                         image_ids.append(image_id)
 
+                    # Fill padding images for the end of the batch
+                    if nof_samples_per_batch < BATCH_SIZE:
+                        padding_num = BATCH_SIZE - nof_samples_per_batch
+                        for padd in range(padding_num):
+                            padd_img = np.zeros((config.IMAGE_MIN_DIM, config.IMAGE_MAX_DIM, 3))
+                            images.append(padd_img)
+
                     # Run object detection
                     start = time.time()
                     results = model.detect(images, verbose=0, gpi_type=config.GPI_TYPE)
@@ -244,6 +252,12 @@ if __name__ == '__main__':
                     # Go over results
                     current_index = 0
                     for r in results:
+
+                        # The last batch and stop if we got to the padded zeros images
+                        if nof_samples_per_batch < BATCH_SIZE:
+                            padding_num = BATCH_SIZE - nof_samples_per_batch
+                            if current_index == padding_num:
+                                break
 
                         image = images[current_index]
                         image_id = image_ids[current_index]
