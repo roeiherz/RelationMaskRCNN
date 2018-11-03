@@ -197,9 +197,8 @@ if __name__ == '__main__':
     dirs = [dr for dr in os.listdir(input_path) if os.path.isdir(os.path.join(input_path, dr))]
     print("Number of dirs: {} and videos: {}".format(len(dirs), len(videos)))
 
-    csv_data_lst = []
     for uuid in dirs:
-
+        csv_data_lst = []
         if uuid not in videos:
             continue
 
