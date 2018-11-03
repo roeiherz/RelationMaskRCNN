@@ -205,7 +205,7 @@ if __name__ == '__main__':
 
         # Sort out images
         imgs = [img for img in os.listdir(os.path.join(input_path, uuid)) if ".jpg" in img]
-        # imgs = imgs[:3]
+        # imgs = imgs[:5]
 
         # Get number of batches (one file is JSON)
         size = len(imgs)
@@ -255,8 +255,7 @@ if __name__ == '__main__':
 
                         # The last batch and stop if we got to the padded zeros images
                         if nof_samples_per_batch < BATCH_SIZE:
-                            padding_num = BATCH_SIZE - nof_samples_per_batch
-                            if current_index == padding_num:
+                            if current_index == nof_samples_per_batch:
                                 break
 
                         image = images[current_index]
@@ -317,7 +316,7 @@ if __name__ == '__main__':
                 except Exception as e:
                     print("Error: {}".format(str(e)))
 
-        # Write file
-        writer = csv.writer(fl_csv)
-        writer.writerows(csv_data_lst)
+            # Write file
+            writer = csv.writer(fl_csv)
+            writer.writerows(csv_data_lst)
     print("End BDD Prediction")
