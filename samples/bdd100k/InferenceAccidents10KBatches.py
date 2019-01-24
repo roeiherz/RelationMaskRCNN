@@ -103,9 +103,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
     args.bdd_dataset_dir = BDD_DATASET_DIR
 
-    # Define GPU training
-    os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
-
     # Use Local params
     if args.local:
         args.bdd_dataset_dir = "/home/roei/Datasets/BDD/bdd100k/"
@@ -128,6 +125,9 @@ if __name__ == '__main__':
         # args.model = "/home/roei/RelationMaskRCNN/logs/bdd100k20181018T2014/mask_rcnn_bdd100k_0149.h5"
         args.save_path = "/home/roei/RelationMaskRCNN/samples/bdd100k"
         # args.save_path = "/home/roei/RelationMaskRCNN/samples/bdd100k/7_160_resnet101.jpg"
+
+    # Define GPU training
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
 
     print("Model: ", args.model)
     print("Dataset dir: ", args.accidents_dataset_dir)
@@ -232,6 +232,7 @@ if __name__ == '__main__':
                         image_id = imgs[ind]
                         # Load image and mask
                         image = skimage.io.imread(os.path.join(input_path, uuid, image_id))
+                        # image = skimage.io.imread("/home/roei/Datasets/Accidents10K/Images/64c2e384-98de-4dcb-8846-9d368032456f/000002.jpg")
                         images.append(image)
                         image_ids.append(image_id)
 
@@ -264,6 +265,8 @@ if __name__ == '__main__':
                         classes_ids = r['class_ids']
                         indices = non_max_suppression(boxes, scores, 0.2)
                         boxes = boxes[indices]
+                        scores = scores[indices]
+                        classes_ids = classes_ids[indices]
 
                         # Sort boxes
                         x1, y1, y2, x2 = boxes[:, 1], boxes[:, 0], boxes[:, 2], boxes[:, 3]
