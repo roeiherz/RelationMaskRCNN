@@ -30,7 +30,7 @@ DEFAULT_DATASET_YEAR = "2017"
 # Dataset path for the data
 BDD_DATASET_DIR = "/data/BDD/bdd100k/"
 ACCIDENTS_DATASET_DIR = "/ssd/data/Accidents10K"
-BATCH_SIZE = 1
+BATCH_SIZE = 15
 
 
 def clean_name(name):
@@ -110,6 +110,8 @@ if __name__ == '__main__':
     if args.local:
         args.bdd_dataset_dir = "/home/roei/Datasets/BDD/bdd100k/"
         args.accidents_dataset_dir = "/home/roei/Datasets/Accidents10K"
+        args.gpu = 1
+        BATCH_SIZE = 1
         # Resnet101 COCO Model
         # args.model = "/home/roei/RelationMaskRCNN/logs/Coco/mask_rcnn_coco.h5"
         # Resnet101 Pretrained COCO Model only rois fixed
