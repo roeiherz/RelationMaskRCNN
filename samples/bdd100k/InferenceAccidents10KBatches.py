@@ -91,7 +91,7 @@ if __name__ == '__main__':
                         metavar="<image count>",
                         help='Images to use for evaluation (default=500)')
     parser.add_argument('--gpu', required=False,
-                        default=1,
+                        default=0,
                         metavar="0, 1, ...",
                         help='GPU number ro run',
                         type=int)
