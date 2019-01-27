@@ -78,8 +78,8 @@ class BDD100KConfig(Config):
     # GPU_COUNT = 8
 
     # Number of classes
-    NUM_CLASSES = 10 + 1  # BDD100K 10 classes + 1 negative
-    # NUM_CLASSES = 80 + 1  # MS-COCO 80 classes + 1 negative
+    # NUM_CLASSES = 10 + 1  # BDD100K 10 classes + 1 negative
+    NUM_CLASSES = 80 + 1  # MS-COCO 80 classes + 1 negative
 
     # Relation Networks or no Relation Networks at all
     # GPI_TYPE = "FeatureAttention"
