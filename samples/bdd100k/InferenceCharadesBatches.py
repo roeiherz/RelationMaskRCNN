@@ -172,7 +172,7 @@ if __name__ == '__main__':
 
     # Get UUIDs
     dirs = [dr for dr in os.listdir(input_path) if os.path.isdir(os.path.join(input_path, dr))]
-    dirs = dirs[2600:3900]
+    dirs = dirs[1300:2600]
     print("Number of dirs: {}".format(len(dirs)))
 
     cnt = 0
