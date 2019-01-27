@@ -30,8 +30,7 @@ MODEL_PATH = os.path.join(ROOT_DIR, 'weights')
 DEFAULT_LOGS_DIR = os.path.join(ROOT_DIR, "logs")
 DEFAULT_DATASET_YEAR = "2017"
 # Dataset path for the data
-BDD_DATASET_DIR = "/data/BDD/bdd100k/"
-ACCIDENTS_DATASET_DIR = "/data/Accidents1K"
+DATASET_DIR = "/ssd/data/"
 BATCH_SIZE = 15
 
 
@@ -72,10 +71,6 @@ if __name__ == '__main__':
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='Predict Graph Detector on BDD.')
     parser.add_argument('--local', help='local debug', action='store', default=False)
-    parser.add_argument('--accidents_dataset_dir',
-                        default=ACCIDENTS_DATASET_DIR,
-                        metavar="/path/to/coco/",
-                        help='Directory of the Nexars Incidents dataset')
     parser.add_argument('--model',
                         default="nexar",
                         metavar="/path/to/weights.h5",
@@ -103,7 +98,7 @@ if __name__ == '__main__':
                         help='Number of workers',
                         type=int)
     args = parser.parse_args()
-    args.dataset_dir = BDD_DATASET_DIR
+    args.dataset_dir = DATASET_DIR
 
     # Use Local params
     if args.local:
@@ -177,7 +172,7 @@ if __name__ == '__main__':
 
     # Get UUIDs
     dirs = [dr for dr in os.listdir(input_path) if os.path.isdir(os.path.join(input_path, dr))]
-    dirs = dirs[1300:2600]
+    dirs = dirs[2600:3900]
     print("Number of dirs: {}".format(len(dirs)))
 
     cnt = 0
