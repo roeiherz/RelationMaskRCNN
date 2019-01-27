@@ -105,14 +105,12 @@ if __name__ == '__main__':
     args = parser.parse_args()
     args.dataset_dir = BDD_DATASET_DIR
 
-    # Define GPU training
-    os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
-
     # Use Local params
     if args.local:
         args.dataset_dir = "/home/roei/Datasets/Charades/"
         # Resnet101 COCO Model
         args.model = "/home/roei/RelationMaskRCNN/logs/Coco/mask_rcnn_coco.h5"
+        args.gpu = 0
         # Resnet101 Pretrained COCO Model only rois fixed
         # args.model = "/home/roei/RelationMaskRCNN/logs/bdd100k20180928T1743/mask_rcnn_bdd100k_0160.h5"
         # different loss
@@ -127,6 +125,9 @@ if __name__ == '__main__':
         # args.model = "/home/roei/RelationMaskRCNN/logs/bdd100k20181018T2014/mask_rcnn_bdd100k_0149.h5"
         args.save_path = "/home/roei/RelationMaskRCNN/samples/bdd100k"
         # args.save_path = "/home/roei/RelationMaskRCNN/samples/bdd100k/7_160_resnet101.jpg"
+
+    # Define GPU training
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
 
     print("Model: ", args.model)
     print("Dataset dir: ", args.dataset_dir)
@@ -176,12 +177,18 @@ if __name__ == '__main__':
 
     # Get UUIDs
     dirs = [dr for dr in os.listdir(input_path) if os.path.isdir(os.path.join(input_path, dr))]
+    dirs = dirs[1300:2600]
     print("Number of dirs: {}".format(len(dirs)))
 
     cnt = 0
     for uuid in dirs:
         csv_data_lst = []
         cnt += 1
+
+        # Check whether there is a concrete
+        if os.path.isfile(os.path.join(output_path, "{}.csv".format(uuid))):
+            print("File {} already exists".format(uuid))
+            continue
 
         # Sort out images
         imgs = [img for img in os.listdir(os.path.join(input_path, uuid)) if ".jpg" in img]
