@@ -11,11 +11,11 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import skimage
 
-from Utils.utils import COCO_LABELS
 
 ROOT_DIR = os.path.abspath("../../")
 sys.path.append(ROOT_DIR)  # To find local version of the library
 from samples.bdd100k.BDD100K import BDD100KConfig, _open_for_csv, _read_classes
+from Utils.utils import COCO_LABELS
 # Root directory of the project
 from mrcnn.utils import non_max_suppression
 from mrcnn import model as modellib
