@@ -31,7 +31,7 @@ DEFAULT_LOGS_DIR = os.path.join(ROOT_DIR, "logs")
 DEFAULT_DATASET_YEAR = "2017"
 # Dataset path for the data
 DATASET_DIR = "/ssd/data/Charades"
-BATCH_SIZE = 15
+BATCH_SIZE = 10
 
 
 def clean_name(name):
