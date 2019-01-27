@@ -32,7 +32,7 @@ DEFAULT_DATASET_YEAR = "2017"
 # Dataset path for the data
 BDD_DATASET_DIR = "/data/BDD/bdd100k/"
 ACCIDENTS_DATASET_DIR = "/data/Accidents1K"
-BATCH_SIZE = 1
+BATCH_SIZE = 15
 
 
 def clean_name(name):
